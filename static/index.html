@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Slip Scanner</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Slip Scanner</h1>
+      <p>Snap a bank slip or receipt, auto-extract the details, and save it straight to Google Sheets.</p>
+    </header>
+
+    <main>
+      <section id="upload-panel" class="card">
+        <label id="dropzone" for="file-input" class="dropzone">
+          <img id="preview-img" class="preview-img hidden" alt="Slip preview" />
+          <div id="dropzone-hint" class="dropzone-hint">
+            <span class="dropzone-icon">📄</span>
+            <span>Click to choose a photo, or drag one here</span>
+            <span class="dropzone-sub">PNG, JPG, WEBP · up to 10&nbsp;MB</span>
+          </div>
+        </label>
+        <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+
+        <button id="extract-btn" class="btn btn-primary" disabled>Extract details</button>
+        <p id="upload-error" class="error hidden"></p>
+      </section>
+
+      <section id="review-panel" class="card hidden">
+        <h2>Review before saving</h2>
+        <p class="hint">Extracted automatically — check the numbers and edit anything that looks off.</p>
+
+        <form id="review-form" class="review-form">
+          <div class="field">
+            <label for="f-amount">Amount</label>
+            <input id="f-amount" name="amount" type="number" step="0.01" required />
+          </div>
+          <div class="field">
+            <label for="f-currency">Currency</label>
+            <input id="f-currency" name="currency" type="text" placeholder="MYR" />
+          </div>
+          <div class="field">
+            <label for="f-date">Date</label>
+            <input id="f-date" name="date" type="date" />
+          </div>
+          <div class="field">
+            <label for="f-time">Time</label>
+            <input id="f-time" name="time" type="time" />
+          </div>
+          <div class="field">
+            <label for="f-category">Category</label>
+            <select id="f-category" name="category"></select>
+          </div>
+          <div class="field">
+            <label for="f-transaction_type">Type</label>
+            <select id="f-transaction_type" name="transaction_type">
+              <option value="transfer">Transfer</option>
+              <option value="payment">Payment</option>
+              <option value="deposit">Deposit</option>
+              <option value="withdrawal">Withdrawal</option>
+              <option value="bill">Bill</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-bank_name">Bank / wallet</label>
+            <input id="f-bank_name" name="bank_name" type="text" />
+          </div>
+          <div class="field">
+            <label for="f-reference_number">Reference no.</label>
+            <input id="f-reference_number" name="reference_number" type="text" />
+          </div>
+          <div class="field">
+            <label for="f-sender_name">Sender name</label>
+            <input id="f-sender_name" name="sender_name" type="text" />
+          </div>
+          <div class="field">
+            <label for="f-sender_account">Sender account</label>
+            <input id="f-sender_account" name="sender_account" type="text" />
+          </div>
+          <div class="field">
+            <label for="f-receiver_name">Receiver name</label>
+            <input id="f-receiver_name" name="receiver_name" type="text" />
+          </div>
+          <div class="field">
+            <label for="f-receiver_account">Receiver account</label>
+            <input id="f-receiver_account" name="receiver_account" type="text" />
+          </div>
+          <div class="field field-wide">
+            <label for="f-description">Description</label>
+            <input id="f-description" name="description" type="text" />
+          </div>
+        </form>
+
+        <div class="actions">
+          <button id="discard-btn" class="btn btn-ghost" type="button">Discard</button>
+          <button id="save-btn" class="btn btn-primary" type="button">Save to Google Sheets</button>
+        </div>
+        <p id="save-error" class="error hidden"></p>
+      </section>
+
+      <div id="toast" class="toast hidden"></div>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
