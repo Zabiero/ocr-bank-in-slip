@@ -1,3 +1,4 @@
+import { Fragment, useState } from 'react';
 import type { EditableSlipField } from '../parsing/parseSlip';
 import type { SlipRecord } from '../types';
 import EditableCell from './EditableCell';
@@ -12,6 +13,8 @@ interface ResultsTableProps {
 }
 
 export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescanningId }: ResultsTableProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (slips.length === 0) {
     return <p className="py-12 text-center text-sm text-slate-500">No slips yet. Take a photo or upload one to get started.</p>;
   }
@@ -34,7 +37,8 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
         </thead>
         <tbody>
           {slips.map((slip, i) => (
-            <tr key={slip.id} className="border-b border-slate-100 align-top last:border-0">
+            <Fragment key={slip.id}>
+            <tr className="border-b border-slate-100 align-top last:border-0">
               <td className="px-3 py-2 text-slate-500">{i + 1}</td>
               <td className="px-3 py-2">
                 {slip.thumbnailDataUrl ? (
@@ -95,6 +99,13 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
                 </button>
                 <button
                   type="button"
+                  onClick={() => setExpandedId(expandedId === slip.id ? null : slip.id)}
+                  className="text-xs font-medium text-slate-600 hover:underline"
+                >
+                  {expandedId === slip.id ? 'Hide text' : 'View text'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => onDelete(slip.id)}
                   className="text-xs font-medium text-red-600 hover:underline"
                 >
@@ -102,6 +113,20 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
                 </button>
               </td>
             </tr>
+            {expandedId === slip.id && (
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <td colSpan={9} className="px-3 py-3">
+                  <p className="mb-1 text-xs font-medium text-slate-500">
+                    Raw OCR text (overall confidence {Math.round(slip.ocrConfidence)}%, engine: {slip.ocrEngine}) —
+                    account numbers are masked, everything else is exactly what OCR read:
+                  </p>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-white p-2 text-xs text-slate-800">
+                    {slip.ocrText || '(empty)'}
+                  </pre>
+                </td>
+              </tr>
+            )}
+            </Fragment>
           ))}
         </tbody>
       </table>
