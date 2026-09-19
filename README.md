@@ -1,5 +1,12 @@
 # Slip Scanner
 
+> **Note:** this repo also contains [`web/`](web/README.md), a separate,
+> self-contained client-side app for batch-scanning Malaysian bank-in slips
+> into an editable, exportable table (on-device OCR, no server, no Google
+> Sheets). See `web/README.md` for that app's setup and docs. The rest of
+> this README describes the original single-slip-to-Google-Sheets tool
+> below.
+
 A small, clean web app that reads a photo of a bank transfer slip / payment
 receipt, extracts the details (amount, date, sender/receiver, reference
 number, etc.), auto-categorizes the transaction, and saves it to a Google
