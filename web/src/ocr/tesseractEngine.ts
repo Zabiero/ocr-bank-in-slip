@@ -1,4 +1,4 @@
-import { createWorker, OEM, type Worker } from 'tesseract.js';
+import { createWorker, OEM, PSM, type Worker } from 'tesseract.js';
 import type { OcrEngine, OcrResult } from './engine';
 
 // All engine assets (worker script, WASM core, trained language data) are
@@ -16,15 +16,27 @@ const WORKER_OPTIONS = {
 
 let workerPromise: Promise<Worker> | null = null;
 
+async function initWorker(worker: Worker): Promise<Worker> {
+  // Slips aren't uniform paragraphs - they're scattered label/value fragments
+  // (printed slips) or small, varied-size UI text (mobile "share receipt"
+  // screenshots). SPARSE_TEXT ("find as much text as possible, no particular
+  // order") catches small/secondary text that the default AUTO mode - tuned
+  // for paragraph-shaped documents - can skip over entirely.
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+  return worker;
+}
+
 async function getWorker(): Promise<Worker> {
   if (!workerPromise) {
     // English + Malay (Bahasa Melayu) covers the "Tarikh"/"Masa"/"Jumlah"
     // style labels seen on Malaysian bank slips as well as English ones.
-    workerPromise = createWorker('eng+msa', OEM.LSTM_ONLY, WORKER_OPTIONS).catch(async (err) => {
-      console.warn('Falling back to English-only OCR (Malay traineddata failed to load):', err);
-      workerPromise = null;
-      return createWorker('eng', OEM.LSTM_ONLY, WORKER_OPTIONS);
-    });
+    workerPromise = createWorker('eng+msa', OEM.LSTM_ONLY, WORKER_OPTIONS)
+      .then(initWorker)
+      .catch(async (err) => {
+        console.warn('Falling back to English-only OCR (Malay traineddata failed to load):', err);
+        workerPromise = null;
+        return createWorker('eng', OEM.LSTM_ONLY, WORKER_OPTIONS).then(initWorker);
+      });
   }
   return workerPromise;
 }
