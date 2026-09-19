@@ -177,16 +177,35 @@ export interface PreprocessResult {
  * bounding box (not perspective-corrected) and there is no true deskew. See
  * README.md for how to swap in OpenCV.js for a more advanced pipeline.
  */
+// Small/faint text (e.g. secondary UI text on a downscaled phone
+// screenshot) is easy for OCR to miss when the source image itself is
+// low-resolution. Upscaling toward this minimum width before OCR gives
+// Tesseract more pixels per character to work with.
+const MIN_OCR_WIDTH = 1600;
+
 export async function preprocessImage(file: File): Promise<PreprocessResult> {
   const sourceCanvas = await loadFileToCanvas(file);
   const ctx = sourceCanvas.getContext('2d')!;
   const bounds = autoCropBounds(ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height));
 
-  const cropped = document.createElement('canvas');
+  let cropped = document.createElement('canvas');
   cropped.width = Math.max(1, bounds.width);
   cropped.height = Math.max(1, bounds.height);
-  const croppedCtx = cropped.getContext('2d')!;
+  let croppedCtx = cropped.getContext('2d')!;
   croppedCtx.drawImage(sourceCanvas, bounds.x, bounds.y, cropped.width, cropped.height, 0, 0, cropped.width, cropped.height);
+
+  if (cropped.width < MIN_OCR_WIDTH) {
+    const scale = MIN_OCR_WIDTH / cropped.width;
+    const upscaled = document.createElement('canvas');
+    upscaled.width = Math.round(cropped.width * scale);
+    upscaled.height = Math.round(cropped.height * scale);
+    const upscaledCtx = upscaled.getContext('2d')!;
+    upscaledCtx.imageSmoothingEnabled = true;
+    upscaledCtx.imageSmoothingQuality = 'high';
+    upscaledCtx.drawImage(cropped, 0, 0, upscaled.width, upscaled.height);
+    cropped = upscaled;
+    croppedCtx = upscaledCtx;
+  }
 
   const enhancedData = applyGrayscaleAndContrast(croppedCtx.getImageData(0, 0, cropped.width, cropped.height));
   croppedCtx.putImageData(enhancedData, 0, 0);
