@@ -27,13 +27,20 @@ function format(hour: number, minute: number, second: number, meridiemHint?: str
 export function parseTime(text: string): ParsedField<string> {
   const lines = text.split(/\r?\n/);
 
-  for (const line of lines) {
-    if (TIME_KEYWORD.test(line)) {
-      const m = line.match(TIME_PATTERN);
-      if (m) {
-        const value = format(Number(m[1]), Number(m[2]), Number(m[3] ?? '0'), m[4]);
-        if (value) return { value, confidence: 95, raw: m[0] };
-      }
+  for (let i = 0; i < lines.length; i++) {
+    if (!TIME_KEYWORD.test(lines[i])) continue;
+
+    const m = lines[i].match(TIME_PATTERN);
+    if (m) {
+      const value = format(Number(m[1]), Number(m[2]), Number(m[3] ?? '0'), m[4]);
+      if (value) return { value, confidence: 95, raw: m[0] };
+    }
+
+    // Some receipts put the label and value on separate lines - check the next line too.
+    const nextMatch = lines[i + 1]?.match(TIME_PATTERN);
+    if (nextMatch) {
+      const value = format(Number(nextMatch[1]), Number(nextMatch[2]), Number(nextMatch[3] ?? '0'), nextMatch[4]);
+      if (value) return { value, confidence: 90, raw: nextMatch[0] };
     }
   }
 

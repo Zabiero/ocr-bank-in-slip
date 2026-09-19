@@ -141,20 +141,34 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
     return { value: null, confidence: 0 };
   }
 
-  // Prefer a candidate near a "Date"/"Tarikh" label on the same line.
+  // Prefer a candidate near a "Date"/"Tarikh" label, on the same line or -
+  // for receipts that put the label and value on separate lines - the next one.
   const lines = text.split(/\r?\n/);
-  let lineStart = 0;
   let nearKeyword: Candidate | null = null;
-  for (const line of lines) {
-    const lineEnd = lineStart + line.length;
-    if (DATE_KEYWORD.test(line)) {
-      const inLine = candidates.find((c) => c.matchIndex >= lineStart && c.matchIndex < lineEnd);
+  let cursor = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const start = cursor;
+    const end = start + lines[i].length;
+    cursor = end + 1;
+
+    if (DATE_KEYWORD.test(lines[i])) {
+      const inLine = candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
       if (inLine) {
         nearKeyword = inLine;
         break;
       }
+
+      const nextLine = lines[i + 1];
+      if (nextLine !== undefined) {
+        const nextStart = end + 1;
+        const nextEnd = nextStart + nextLine.length;
+        const inNextLine = candidates.find((c) => c.matchIndex >= nextStart && c.matchIndex < nextEnd);
+        if (inNextLine) {
+          nearKeyword = inNextLine;
+          break;
+        }
+      }
     }
-    lineStart = lineEnd + 1;
   }
 
   const chosen = nearKeyword ?? candidates[0];

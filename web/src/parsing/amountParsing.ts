@@ -61,12 +61,22 @@ export function parseAmount(text: string): { amount: ParsedField<number>; curren
 
   let bestMatch: { raw: string; prefix?: string; nearKeyword: boolean } | null = null;
 
-  for (const line of lines) {
-    if (AMOUNT_KEYWORD.test(line)) {
-      const afterKeyword = line.slice(line.search(AMOUNT_KEYWORD));
-      const m = firstRealMatch(MONEY_TOKEN_G, afterKeyword);
-      if (m) {
-        bestMatch = { raw: m[2], prefix: m[1], nearKeyword: true };
+  for (let i = 0; i < lines.length; i++) {
+    if (!AMOUNT_KEYWORD.test(lines[i])) continue;
+
+    const afterKeyword = lines[i].slice(lines[i].search(AMOUNT_KEYWORD));
+    const sameLineMatch = firstRealMatch(MONEY_TOKEN_G, afterKeyword);
+    if (sameLineMatch) {
+      bestMatch = { raw: sameLineMatch[2], prefix: sameLineMatch[1], nearKeyword: true };
+      break;
+    }
+
+    // Some receipts put the label and value on separate lines - check the next line too.
+    const nextLine = lines[i + 1];
+    if (nextLine) {
+      const nextLineMatch = firstRealMatch(MONEY_TOKEN_G, nextLine);
+      if (nextLineMatch) {
+        bestMatch = { raw: nextLineMatch[2], prefix: nextLineMatch[1], nearKeyword: true };
         break;
       }
     }

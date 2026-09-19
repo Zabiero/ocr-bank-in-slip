@@ -44,6 +44,23 @@ Account No: 9988776655443322`;
 const GARBAGE_OCR_TEXT = `##@@ !! blurry noise ###
 xx yy zz 000 ...`;
 
+// Mobile banking app "Share Receipt" screens (e.g. Maybank2u) commonly put a
+// field's label on one line and its value on the line below, rather than
+// "Label: value" on a single line.
+const MOBILE_SHARE_RECEIPT_SLIP = `Share Receipt
+Maybank
+Third Party Transfer Successful
+Reference ID 31 Jul 2026, 12:42 PM
+960386438M
+Beneficiary name
+INTERNATIONAL MONTES
+Beneficiary account number
+5623 8458 1700
+Amount
+RM 1500.00
+Note: This receipt is computer generated and no signature is required.
+Malayan Banking Berhad (Co. Reg.: 196001000142)`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -106,6 +123,21 @@ describe('parseSlip', () => {
     expect(parsed.maskedAccountNumbers).toHaveLength(1);
     expect(parsed.maskedAccountNumbers[0]).toMatch(/\*+3322$/);
     expect(computeStatus(parsed)).toBe('ok');
+  });
+
+  it('finds the reference no. and amount when a mobile "share receipt" screen puts labels above their values', () => {
+    const { parsed } = parseSlip(MOBILE_SHARE_RECEIPT_SLIP);
+
+    expect(parsed.referenceNo.value).toBe('960386438M');
+    expect(parsed.referenceNo.confidence).toBeGreaterThanOrEqual(80);
+    expect(parsed.amount.value).toBe(1500);
+    expect(parsed.amount.confidence).toBeGreaterThanOrEqual(80);
+    expect(parsed.bank.value).toBe('Maybank');
+    // Date/time here have no "Date"/"Time" label at all (just sit next to
+    // "Reference ID"), so they're still extracted but correctly flagged for
+    // review rather than treated as certain.
+    expect(parsed.date.value).toBe('31-07-2026');
+    expect(parsed.time.value).toBe('12:42:00 PM');
   });
 
   it('never fabricates values when no usable text is found', () => {
