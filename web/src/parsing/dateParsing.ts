@@ -142,31 +142,31 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
   }
 
   // Prefer a candidate near a "Date"/"Tarikh" label, on the same line or -
-  // for receipts that put the label and value on separate lines - the next one.
+  // for receipts that put the label and value on separate lines, possibly
+  // with a blank line in between (common in OCR block output) - one of the
+  // next few non-blank lines.
   const lines = text.split(/\r?\n/);
+  const lineSpans: Array<{ start: number; end: number }> = [];
+  {
+    let cursor = 0;
+    for (const line of lines) {
+      lineSpans.push({ start: cursor, end: cursor + line.length });
+      cursor += line.length + 1;
+    }
+  }
+
   let nearKeyword: Candidate | null = null;
-  let cursor = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const start = cursor;
-    const end = start + lines[i].length;
-    cursor = end + 1;
+  const MAX_LOOKAHEAD = 3;
+  for (let i = 0; i < lines.length && !nearKeyword; i++) {
+    if (!DATE_KEYWORD.test(lines[i])) continue;
 
-    if (DATE_KEYWORD.test(lines[i])) {
-      const inLine = candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
-      if (inLine) {
-        nearKeyword = inLine;
+    for (let j = i; j < Math.min(lines.length, i + 1 + MAX_LOOKAHEAD); j++) {
+      if (j > i && lines[j].trim() === '') continue;
+      const { start, end } = lineSpans[j];
+      const found = candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
+      if (found) {
+        nearKeyword = found;
         break;
-      }
-
-      const nextLine = lines[i + 1];
-      if (nextLine !== undefined) {
-        const nextStart = end + 1;
-        const nextEnd = nextStart + nextLine.length;
-        const inNextLine = candidates.find((c) => c.matchIndex >= nextStart && c.matchIndex < nextEnd);
-        if (inNextLine) {
-          nearKeyword = inNextLine;
-          break;
-        }
       }
     }
   }

@@ -1,4 +1,5 @@
 import type { ParsedField } from '../types';
+import { nextNonEmptyLine } from './lineUtils';
 
 const REF_KEYWORD =
   /\b(reference\s*no\.?|ref\.?\s*no\.?|reference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|rujukan)\s*[:\-]?\s*/i;
@@ -22,8 +23,8 @@ export function parseReferenceNo(text: string): ParsedField<string> {
 
     // Mobile "share receipt" screens often put the label and its value on
     // separate lines (label, then a bold value below it) instead of
-    // "Label: value" on one line - check the next line too.
-    const nextLine = lines[i + 1]?.trim();
+    // "Label: value" on one line - check the next non-blank line too.
+    const nextLine = nextNonEmptyLine(lines, i + 1);
     if (nextLine) {
       const nextLineValue = nextLine.match(REF_VALUE);
       if (nextLineValue) {

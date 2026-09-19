@@ -44,22 +44,54 @@ Account No: 9988776655443322`;
 const GARBAGE_OCR_TEXT = `##@@ !! blurry noise ###
 xx yy zz 000 ...`;
 
-// Mobile banking app "Share Receipt" screens (e.g. Maybank2u) commonly put a
-// field's label on one line and its value on the line below, rather than
-// "Label: value" on a single line.
-const MOBILE_SHARE_RECEIPT_SLIP = `Share Receipt
-Maybank
-Third Party Transfer Successful
-Reference ID 31 Jul 2026, 12:42 PM
+// Actual Tesseract output (captured verbatim, via the app's "View text")
+// from a real Maybank2u "Share Receipt" screenshot. Mobile receipt screens
+// like this put a field's label on one line and its value on the line
+// below rather than "Label: value" on one line, AND Tesseract's sparse-text
+// mode separates every detected fragment with a blank line - both need
+// handling. OCR also completely failed to read the small gray
+// "31 Jul 2026, 12:42 PM" timestamp text (not garbled - simply absent),
+// which is a real OCR/resolution limitation, not something parsing can
+// recover; date/time are expected to stay null here.
+const MOBILE_SHARE_RECEIPT_SLIP = `12:429
+
+"
+
+= ea
+
+Share Receipt
+
+@ Maybank
+
+Third Party Transfer
+
+Reference ID
+
 960386438M
+
 Beneficiary name
+
 INTERNATIONAL MONTES
+
 Beneficiary account number
+
 5623 8458 1700
+
+Recipient reference
+
+Cyrus See Yu Yang
+
 Amount
+
 RM 1500.00
-Note: This receipt is computer generated and no signature is required.
-Malayan Banking Berhad (Co. Reg.: 196001000142)`;
+
+Malayan Banking Berhad (Co. Reg.
+
+196001000142)
+
+Maybank Islamic Berhad (Co. Reg.
+
+200701029411)`;
 
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
@@ -133,11 +165,12 @@ describe('parseSlip', () => {
     expect(parsed.amount.value).toBe(1500);
     expect(parsed.amount.confidence).toBeGreaterThanOrEqual(80);
     expect(parsed.bank.value).toBe('Maybank');
-    // Date/time here have no "Date"/"Time" label at all (just sit next to
-    // "Reference ID"), so they're still extracted but correctly flagged for
-    // review rather than treated as certain.
-    expect(parsed.date.value).toBe('31-07-2026');
-    expect(parsed.time.value).toBe('12:42:00 PM');
+    // OCR never captured the small gray timestamp text at all here - it's
+    // genuinely absent from the input, so parsing correctly leaves these
+    // blank rather than inventing a value from unrelated numbers elsewhere
+    // (e.g. the phone status bar's "12:42" clock, also picked up by OCR).
+    expect(parsed.date.value).toBeNull();
+    expect(parsed.time.value).toBeNull();
   });
 
   it('never fabricates values when no usable text is found', () => {

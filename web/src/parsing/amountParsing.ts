@@ -1,4 +1,5 @@
 import type { ParsedField } from '../types';
+import { nextNonEmptyLine } from './lineUtils';
 
 const AMOUNT_KEYWORD = /\b(amount|amaun|total|jumlah)\b/i;
 const CURRENCY_PREFIX_SRC = '(RM|MYR|\\$)';
@@ -71,8 +72,8 @@ export function parseAmount(text: string): { amount: ParsedField<number>; curren
       break;
     }
 
-    // Some receipts put the label and value on separate lines - check the next line too.
-    const nextLine = lines[i + 1];
+    // Some receipts put the label and value on separate lines - check the next non-blank line too.
+    const nextLine = nextNonEmptyLine(lines, i + 1);
     if (nextLine) {
       const nextLineMatch = firstRealMatch(MONEY_TOKEN_G, nextLine);
       if (nextLineMatch) {

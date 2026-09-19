@@ -1,4 +1,5 @@
 import type { ParsedField } from '../types';
+import { nextNonEmptyLine } from './lineUtils';
 
 const TIME_KEYWORD = /\b(time|masa)\b/i;
 const TIME_PATTERN = /\b(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]\.?)?\b/;
@@ -36,8 +37,8 @@ export function parseTime(text: string): ParsedField<string> {
       if (value) return { value, confidence: 95, raw: m[0] };
     }
 
-    // Some receipts put the label and value on separate lines - check the next line too.
-    const nextMatch = lines[i + 1]?.match(TIME_PATTERN);
+    // Some receipts put the label and value on separate lines - check the next non-blank line too.
+    const nextMatch = nextNonEmptyLine(lines, i + 1)?.match(TIME_PATTERN);
     if (nextMatch) {
       const value = format(Number(nextMatch[1]), Number(nextMatch[2]), Number(nextMatch[3] ?? '0'), nextMatch[4]);
       if (value) return { value, confidence: 90, raw: nextMatch[0] };
