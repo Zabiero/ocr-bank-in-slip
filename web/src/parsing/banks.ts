@@ -76,6 +76,10 @@ export const BANKS: Bank[] = [
     name: 'Bank Muamalat',
     aliases: ['bank muamalat malaysia', 'bank muamalat'],
   },
+  {
+    name: 'AEON Bank',
+    aliases: ['aeon bank (m) berhad', 'aeon bank'],
+  },
 ];
 
 export const UNKNOWN_BANK = 'Unknown';
@@ -86,20 +90,27 @@ export const UNKNOWN_BANK = 'Unknown';
  * confidence score: 95 for a match, 0 (with UNKNOWN_BANK) when nothing
  * matches — the caller flags 0-confidence fields for review rather than
  * guessing a bank.
+ *
+ * Prefers whichever match occurs earliest in the text over the longest
+ * alias, since the issuing bank's own name/logo is almost always near the
+ * top of a receipt, while a different bank's name can legitimately appear
+ * further down (e.g. the recipient's bank in a "Transfer to ... RHB Bank
+ * Berhad" section of a transfer receipt) - that later match must not win.
  */
 export function detectBank(
   text: string,
   banks: Bank[] = BANKS,
 ): { name: string; confidence: number; raw?: string } {
   const lower = text.toLowerCase();
-  let best: { name: string; alias: string } | null = null;
+  let best: { name: string; alias: string; index: number } | null = null;
 
   for (const bank of banks) {
     for (const alias of bank.aliases) {
-      if (lower.includes(alias.toLowerCase())) {
-        if (!best || alias.length > best.alias.length) {
-          best = { name: bank.name, alias };
-        }
+      const index = lower.indexOf(alias.toLowerCase());
+      if (index === -1) continue;
+      const isBetter = !best || index < best.index || (index === best.index && alias.length > best.alias.length);
+      if (isBetter) {
+        best = { name: bank.name, alias, index };
       }
     }
   }

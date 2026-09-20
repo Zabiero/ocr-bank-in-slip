@@ -133,6 +133,26 @@ const PADDLEOCR_NO_SPACE_DATE_SLIP = `Reference ID
 Amount
 RM 1500.00`;
 
+// A real AEON Bank transfer receipt whose body also names the *recipient's*
+// bank ("RHB Bank Berhad", under "Transfer to") further down the page.
+// The issuing bank (AEON Bank, in the header) must win, not the later,
+// unrelated bank name.
+const AEON_BANK_SLIP = `AEON Bank
+17 Sep 2026, 06:24PM (MYT)
+Ref ID: 20260917RPPEMYKL010HRB80620236
+Amount
+RM4,000.00
+Successful
+Transfer to
+DARMA MOTOR SDN BHD
+21430700004956
+RHB Bank Berhad
+Transaction date
+17 Sep 2026, 06:24PM
+Recipient reference
+PaymentModenasElit
+This receipt is computer generated and no signature is required.`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -232,6 +252,16 @@ describe('parseSlip', () => {
     expect(parsed.date.value).toBe('31-07-2026');
     expect(parsed.time.value).toBe('12:42:00 PM');
     expect(parsed.referenceNo.value).toBe('960386438M');
+  });
+
+  it('picks the issuing bank in the header over a different bank named later in the text', () => {
+    const { parsed } = parseSlip(AEON_BANK_SLIP);
+
+    expect(parsed.bank.value).toBe('AEON Bank');
+    expect(parsed.date.value).toBe('17-09-2026');
+    expect(parsed.time.value).toBe('06:24:00 PM');
+    expect(parsed.amount.value).toBe(4000);
+    expect(parsed.referenceNo.value).toBe('20260917RPPEMYKL010HRB80620236');
   });
 
   it('never fabricates values when no usable text is found', () => {
