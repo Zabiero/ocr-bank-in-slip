@@ -93,6 +93,34 @@ Maybank Islamic Berhad (Co. Reg.
 
 200701029411)`;
 
+// Actual PaddleOCR output (its rec_texts, joined with newlines - the app's
+// PaddleOCR engine does the same) from the same real Maybank2u screenshot.
+// Unlike Tesseract, PaddleOCR read the "31 Jul 2026, 12:42 PM" timestamp
+// correctly - but its reading order puts that date/time line *between*
+// "Reference ID" and its actual value ("960386438M"), which a lookahead of
+// only one line would miss entirely, spilling over into matching an
+// unrelated "Recipient reference" field (the payer's own name) instead.
+const PADDLEOCR_MOBILE_SHARE_RECEIPT_SLIP = `←
+Share Receipt
+Maybank
+Third Party Transfer
+Successful
+Reference ID
+31 Jul 2026, 12:42 PM
+960386438M
+Beneficiary name
+INTERNATIONAL MONTES
+Beneficiary account number
+5623 8458 1700
+Recipient reference
+Cyrus See Yu Yang
+Amount
+RM 1500.00
+Note: This receipt is computer generated and no
+signature is required.
+Malayan Banking Berhad (Co. Reg. : 196001000142)
+Maybank Islamic Berhad (Co. Reg. : 200701029411)`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -171,6 +199,19 @@ describe('parseSlip', () => {
     // (e.g. the phone status bar's "12:42" clock, also picked up by OCR).
     expect(parsed.date.value).toBeNull();
     expect(parsed.time.value).toBeNull();
+  });
+
+  it('finds the reference no. when another field sits between the label and its value (PaddleOCR reading order)', () => {
+    const { parsed } = parseSlip(PADDLEOCR_MOBILE_SHARE_RECEIPT_SLIP);
+
+    expect(parsed.referenceNo.value).toBe('960386438M');
+    expect(parsed.referenceNo.confidence).toBeGreaterThanOrEqual(80);
+    // Must not fall through to "Recipient reference" / the payer's name.
+    expect(parsed.referenceNo.value).not.toContain('Cyrus');
+    expect(parsed.date.value).toBe('31-07-2026');
+    expect(parsed.time.value).toBe('12:42:00 PM');
+    expect(parsed.amount.value).toBe(1500);
+    expect(parsed.bank.value).toBe('Maybank');
   });
 
   it('never fabricates values when no usable text is found', () => {

@@ -1,12 +1,26 @@
 import type { ParsedField } from '../types';
-import { nextNonEmptyLine } from './lineUtils';
 
 const REF_KEYWORD =
   /\b(reference\s*no\.?|ref\.?\s*no\.?|reference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|rujukan)\s*[:\-]?\s*/i;
 
-// Reference numbers are alphanumeric, often with dashes/slashes, and long
-// enough that we won't mistake a short quantity or page number for one.
-const REF_VALUE = /[A-Z0-9][A-Z0-9\-/]{4,}/i;
+// Reference numbers are alphanumeric, often with dashes/slashes, long enough
+// that we won't mistake a short quantity for one, and - importantly -
+// contain at least one digit, so a nearby person's name (e.g. a
+// "Recipient reference" field showing the payer's name) is never mistaken
+// for a transaction reference just because it also matched the "reference"
+// keyword.
+const REF_VALUE_G = /[A-Z0-9][A-Z0-9\-/]{4,}/gi;
+
+function findRefValue(line: string): string | null {
+  REF_VALUE_G.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = REF_VALUE_G.exec(line))) {
+    if (/\d/.test(m[0])) return m[0];
+  }
+  return null;
+}
+
+const LOOKAHEAD_LINES = 3;
 
 export function parseReferenceNo(text: string): ParsedField<string> {
   const lines = text.split(/\r?\n/);
@@ -16,19 +30,19 @@ export function parseReferenceNo(text: string): ParsedField<string> {
     if (!keywordMatch) continue;
 
     const rest = lines[i].slice((keywordMatch.index ?? 0) + keywordMatch[0].length);
-    const sameLineValue = rest.match(REF_VALUE);
+    const sameLineValue = findRefValue(rest);
     if (sameLineValue) {
-      return { value: sameLineValue[0], confidence: 95, raw: keywordMatch[0] + sameLineValue[0] };
+      return { value: sameLineValue, confidence: 95, raw: keywordMatch[0] + sameLineValue };
     }
 
-    // Mobile "share receipt" screens often put the label and its value on
-    // separate lines (label, then a bold value below it) instead of
-    // "Label: value" on one line - check the next non-blank line too.
-    const nextLine = nextNonEmptyLine(lines, i + 1);
-    if (nextLine) {
-      const nextLineValue = nextLine.match(REF_VALUE);
-      if (nextLineValue) {
-        return { value: nextLineValue[0], confidence: 90, raw: `${keywordMatch[0]} / ${nextLineValue[0]}` };
+    // The value isn't always on the very next line: some receipts put
+    // another field's text between a label and its value (e.g. a date/time
+    // shown beside "Reference ID", with the actual reference number below
+    // both). Search a small window of following lines rather than just one.
+    for (let j = i + 1; j < Math.min(lines.length, i + 1 + LOOKAHEAD_LINES); j++) {
+      const candidate = findRefValue(lines[j]);
+      if (candidate) {
+        return { value: candidate, confidence: 88, raw: `${keywordMatch[0]} / ${candidate}` };
       }
     }
   }
