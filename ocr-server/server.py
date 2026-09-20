@@ -35,17 +35,18 @@ app.add_middleware(
 # Loaded once at startup - PaddleOCR initialization is slow (and downloads
 # model files on first run); individual requests are fast once it's ready.
 #
-# Document orientation classification and unwarping are extra neural-net
-# passes meant for photos of curled/skewed paper documents; they add real
-# CPU time and aren't needed for a flat mobile screenshot or a slip photo
-# our own preprocessing has already EXIF-rotated - disabling them is a
-# significant speedup with no accuracy cost for this app's use case.
+# Document orientation classification and unwarping are extra whole-page
+# neural-net passes meant for photos of curled/skewed paper documents; they
+# add real CPU time and aren't needed for a flat mobile screenshot or a
+# slip photo our own preprocessing has already EXIF-rotated. Text-line
+# orientation is left enabled - it operates per detected text region and
+# testing found disabling it broke recognition of small/faint text, which
+# is the whole reason to use PaddleOCR here.
 _ocr = PaddleOCR(
     lang="en",
     enable_mkldnn=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
-    use_textline_orientation=False,
 )
 
 
