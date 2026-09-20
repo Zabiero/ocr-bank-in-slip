@@ -14,6 +14,7 @@ interface ResultsTableProps {
 
 export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescanningId }: ResultsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [previewSlip, setPreviewSlip] = useState<SlipRecord | null>(null);
 
   if (slips.length === 0) {
     return <p className="py-12 text-center text-sm text-slate-500">No slips yet. Take a photo or upload one to get started.</p>;
@@ -42,7 +43,18 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
               <td className="px-3 py-2 text-slate-500">{i + 1}</td>
               <td className="px-3 py-2">
                 {slip.thumbnailDataUrl ? (
-                  <img src={slip.thumbnailDataUrl} alt={slip.fileName} className="h-12 w-12 rounded object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSlip(slip)}
+                    className="block rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label={`View full-size image of ${slip.fileName}`}
+                  >
+                    <img
+                      src={slip.thumbnailDataUrl}
+                      alt={slip.fileName}
+                      className="h-12 w-12 cursor-pointer rounded object-cover transition hover:opacity-80"
+                    />
+                  </button>
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
                     n/a
@@ -130,6 +142,36 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
           ))}
         </tbody>
       </table>
+
+      {previewSlip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreviewSlip(null)}
+        >
+          <div className="max-h-full max-w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between text-white">
+              <span className="truncate pr-4 text-sm">{previewSlip.fileName}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewSlip(null)}
+                className="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20"
+                aria-label="Close"
+              >
+                ✕ Close
+              </button>
+            </div>
+            {previewSlip.imageDataUrl ? (
+              <img
+                src={previewSlip.imageDataUrl}
+                alt={previewSlip.fileName}
+                className="max-h-[85vh] max-w-full rounded object-contain"
+              />
+            ) : (
+              <p className="text-white">No image stored for this slip.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
