@@ -14,6 +14,7 @@ import { findDuplicate } from './duplicateDetection';
 import { downloadCsv } from './export/csv';
 import { downloadXlsx } from './export/xlsx';
 import { copySlipsToClipboard } from './export/clipboard';
+import { downloadTrainingData } from './export/trainingData';
 import type { ProcessingStage, SlipRecord } from './types';
 
 function parseDdMmYyyy(value: string | null): Date | null {
@@ -193,6 +194,15 @@ export default function App() {
           className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
         >
           Copy
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadTrainingData(filteredSlips)}
+          disabled={filteredSlips.length === 0}
+          title="Downloads each slip's image plus its current field values as JSON - fix any wrong fields in the table first, since whatever is shown becomes the label."
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          Export training data
         </button>
       </div>
 
