@@ -153,6 +153,39 @@ Recipient reference
 PaymentModenasElit
 This receipt is computer generated and no signature is required.`;
 
+// Actual OCR output (captured verbatim via "View text") from a real photo
+// of a printed AEON Bank receipt lying on top of other papers with
+// handwritten notes - lots of surrounding noise from the background, and
+// AEON's stylized circular-icon "A" was dropped entirely, reading the
+// header as "EONBank" with no leading "A" and no space before "Bank".
+const AEON_BANK_SLIP_NOISY_PHOTO = `INGI  AL
+上Ahe
+LTPN
+2. Goe
+20 8
+Notes
+C0R-00003570
+payment for
+modenes elit
+EONBank
+ikos white
+17 Sep 2026, 06:24PM (MYT)
+RefID:20260917RPPEMYKL010HRB80620236
+Amount
+RM4,000.00
+Successful
+Transfer to
+DARMA MOTOR SDN BHD
+O
+156
+H ad
+ra
+服  P
+家e
+PaymentModenasElit
+This receipt is computer generated and no signature is
+required.`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -256,6 +289,16 @@ describe('parseSlip', () => {
 
   it('picks the issuing bank in the header over a different bank named later in the text', () => {
     const { parsed } = parseSlip(AEON_BANK_SLIP);
+
+    expect(parsed.bank.value).toBe('AEON Bank');
+    expect(parsed.date.value).toBe('17-09-2026');
+    expect(parsed.time.value).toBe('06:24:00 PM');
+    expect(parsed.amount.value).toBe(4000);
+    expect(parsed.referenceNo.value).toBe('20260917RPPEMYKL010HRB80620236');
+  });
+
+  it('recognizes AEON Bank even when OCR drops the logo\'s stylized "A", amid real background noise', () => {
+    const { parsed } = parseSlip(AEON_BANK_SLIP_NOISY_PHOTO);
 
     expect(parsed.bank.value).toBe('AEON Bank');
     expect(parsed.date.value).toBe('17-09-2026');

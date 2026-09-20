@@ -78,7 +78,10 @@ export const BANKS: Bank[] = [
   },
   {
     name: 'AEON Bank',
-    aliases: ['aeon bank (m) berhad', 'aeon bank'],
+    // AEON's logo draws the "A" as a circular icon rather than a normal
+    // letter, which OCR frequently drops entirely - reading the header as
+    // "EONBank"/"EON Bank" with no leading "A" and often no space either.
+    aliases: ['aeon bank (m) berhad', 'aeon bank', 'eonbank', 'eon bank'],
   },
   {
     name: 'Kuwait Finance House',
