@@ -77,7 +77,7 @@ No `.env` or API key is required to run the app — the default OCR engine
 
 ## OCR engines
 
-Selected in **Settings**, both implement the same `OcrEngine` interface
+Selected in **Settings**, all three implement the same `OcrEngine` interface
 (`src/ocr/engine.ts`):
 
 - **Tesseract.js (default)** — runs entirely on-device, in a Web Worker.
@@ -90,8 +90,17 @@ Selected in **Settings**, both implement the same `OcrEngine` interface
   but sends the slip image to Google's API using an API key you supply
   yourself in Settings. The app shows a clear warning before you can enable
   it, and the key is stored only in `localStorage`.
+- **PaddleOCR (optional, local server)** — noticeably better than
+  Tesseract.js at catching small/faint/secondary text (found during testing
+  against a real mobile "share receipt" screenshot where Tesseract missed a
+  timestamp entirely and PaddleOCR read it correctly). Since PaddleOCR is
+  Python-only, it can't run inside the browser like Tesseract.js — it needs
+  a small local server, in [`ocr-server/`](../ocr-server/README.md) at the
+  repo root, run alongside this app. Everything still stays on your machine
+  (`src/ocr/paddleOcrEngine.ts` just posts to `http://localhost:8000` by
+  default); see that folder's README for setup.
 
-To add a third engine (e.g. AWS Textract or Azure Document Intelligence),
+To add another engine (e.g. AWS Textract or Azure Document Intelligence),
 implement `OcrEngine` in a new file under `src/ocr/` and wire it into
 `getOcrEngine()` in `src/ocr/index.ts` — nothing else in the app needs to
 change.

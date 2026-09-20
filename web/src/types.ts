@@ -52,19 +52,22 @@ export interface SlipRecord {
 
 export type DateAmbiguityMode = 'day-first' | 'month-first';
 
-export type OcrEngineId = 'tesseract' | 'cloud-vision';
+export type OcrEngineId = 'tesseract' | 'cloud-vision' | 'paddleocr';
 
 export interface AppSettings {
   dateAmbiguityMode: DateAmbiguityMode;
   ocrEngine: OcrEngineId;
   /** User-supplied key for the optional cloud OCR engine. Stored in localStorage only. */
   cloudVisionApiKey: string;
+  /** Base URL of the optional local PaddleOCR server (see ocr-server/README.md). */
+  paddleOcrServerUrl: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   dateAmbiguityMode: 'day-first',
   ocrEngine: 'tesseract',
   cloudVisionApiKey: '',
+  paddleOcrServerUrl: 'http://localhost:8000',
 };
 
 export interface Bank {

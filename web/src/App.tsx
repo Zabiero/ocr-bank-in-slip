@@ -115,9 +115,12 @@ export default function App() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Bank-In Slip Scanner</h1>
           <p className="text-sm text-slate-500">
-            {settings.ocrEngine === 'tesseract'
-              ? 'Processed on-device — nothing leaves your browser.'
-              : 'Cloud Vision is enabled — slip photos are sent to Google using your API key.'}
+            {settings.ocrEngine === 'tesseract' &&
+              'Processed on-device — nothing leaves your browser.'}
+            {settings.ocrEngine === 'cloud-vision' &&
+              'Cloud Vision is enabled — slip photos are sent to Google using your API key.'}
+            {settings.ocrEngine === 'paddleocr' &&
+              'PaddleOCR (local server) is enabled — slip photos are sent to your own local server, not the internet.'}
           </p>
         </div>
         <button
