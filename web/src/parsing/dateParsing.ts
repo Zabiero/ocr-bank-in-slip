@@ -59,8 +59,9 @@ const PATTERNS: Array<{ regex: RegExp; build: (m: RegExpMatchArray) => Omit<Cand
     build: (m) => ({ year: Number(m[1]), month: Number(m[2]), day: Number(m[3]), ambiguous: false }),
   },
   {
-    // 12 Sep 2026 / 12 September 2026 / 12 Mac 2026
-    regex: new RegExp(`\\b(\\d{1,2})\\s+(${MONTH_NAME_PATTERN})\\.?\\s+(\\d{2,4})\\b`, 'gi'),
+    // 12 Sep 2026 / 12 September 2026 / 12 Mac 2026 / 12Sep2026 (OCR
+    // sometimes drops the spaces entirely around a recognized month name)
+    regex: new RegExp(`\\b(\\d{1,2})\\s*(${MONTH_NAME_PATTERN})\\.?\\s*(\\d{2,4})\\b`, 'gi'),
     build: (m) => {
       const month = MONTHS[m[2].toLowerCase()];
       if (!month) return null;

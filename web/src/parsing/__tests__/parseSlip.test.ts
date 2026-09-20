@@ -121,6 +121,18 @@ signature is required.
 Malayan Banking Berhad (Co. Reg. : 196001000142)
 Maybank Islamic Berhad (Co. Reg. : 200701029411)`;
 
+// A later PaddleOCR run of the same slip recognized the date/time line
+// with its spaces collapsed ("31Jul2026,12:42PM" instead of
+// "31 Jul 2026, 12:42 PM") - real OCR output for the same input isn't
+// perfectly stable between runs/settings. That merged blob must still
+// parse as a date, and must not get picked up as the reference number
+// just because it's alphanumeric and sits right after "Reference ID".
+const PADDLEOCR_NO_SPACE_DATE_SLIP = `Reference ID
+31Jul2026,12:42PM
+960386438M
+Amount
+RM 1500.00`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -212,6 +224,14 @@ describe('parseSlip', () => {
     expect(parsed.time.value).toBe('12:42:00 PM');
     expect(parsed.amount.value).toBe(1500);
     expect(parsed.bank.value).toBe('Maybank');
+  });
+
+  it('parses a date/time even when OCR collapses its spaces, and does not mistake it for the reference no.', () => {
+    const { parsed } = parseSlip(PADDLEOCR_NO_SPACE_DATE_SLIP);
+
+    expect(parsed.date.value).toBe('31-07-2026');
+    expect(parsed.time.value).toBe('12:42:00 PM');
+    expect(parsed.referenceNo.value).toBe('960386438M');
   });
 
   it('never fabricates values when no usable text is found', () => {

@@ -11,11 +11,17 @@ const REF_KEYWORD =
 // keyword.
 const REF_VALUE_G = /[A-Z0-9][A-Z0-9\-/]{4,}/gi;
 
+// OCR sometimes drops spaces around a date (e.g. "31 Jul 2026" -> "31Jul2026"),
+// which would otherwise look exactly like a plausible reference code - skip
+// anything containing a month abbreviation so a mangled date is never
+// mistaken for a transaction reference.
+const MONTH_ABBREVIATION = /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i;
+
 function findRefValue(line: string): string | null {
   REF_VALUE_G.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = REF_VALUE_G.exec(line))) {
-    if (/\d/.test(m[0])) return m[0];
+    if (/\d/.test(m[0]) && !MONTH_ABBREVIATION.test(m[0])) return m[0];
   }
   return null;
 }
