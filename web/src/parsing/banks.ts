@@ -80,6 +80,39 @@ export const BANKS: Bank[] = [
     name: 'AEON Bank',
     aliases: ['aeon bank (m) berhad', 'aeon bank'],
   },
+  {
+    name: 'Kuwait Finance House',
+    aliases: ['kuwait finance house malaysia', 'kuwait finance house', 'kfh'],
+  },
+  {
+    name: 'Al Rajhi Bank',
+    aliases: ['al rajhi banking', 'al rajhi bank', 'al-rajhi'],
+  },
+  {
+    name: 'Agrobank',
+    aliases: ['bank pertanian malaysia', 'agrobank'],
+  },
+  {
+    name: 'Bank of China (Malaysia)',
+    aliases: ['bank of china (malaysia)', 'bank of china malaysia'],
+  },
+  // Malaysia's five BNM-licensed digital banks (launched 2022-2025).
+  {
+    name: 'GXBank',
+    aliases: ['gxbank', 'gx bank'],
+  },
+  {
+    name: 'Boost Bank',
+    aliases: ['boost bank'],
+  },
+  {
+    name: 'KAF Digital Bank',
+    aliases: ['kaf digital bank'],
+  },
+  {
+    name: 'YTL Digital Bank',
+    aliases: ['ytl digital bank', 'ryt bank'],
+  },
 ];
 
 export const UNKNOWN_BANK = 'Unknown';
