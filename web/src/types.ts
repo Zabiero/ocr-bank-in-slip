@@ -65,7 +65,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   dateAmbiguityMode: 'day-first',
-  ocrEngine: 'paddleocr',
+  ocrEngine: 'tesseract',
   cloudVisionApiKey: '',
   paddleOcrServerUrl: 'http://localhost:8000',
 };
