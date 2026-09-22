@@ -4,11 +4,13 @@ const SETTINGS_KEY = 'bank-slip-ocr:settings';
 
 /**
  * One-time setup link support: ?paddleUrl=...&paddleKey=... pre-fills and
- * saves PaddleOCR settings on first visit, then the URL is scrubbed so the
- * values don't linger in browser history. This exists so a PaddleOCR server
- * + API key can be shared with other people as a link instead of a secret
- * baked into the public JS bundle (which ships to every visitor, not just
- * the people it's meant for).
+ * saves the PaddleOCR fallback server/key on first visit, then the URL is
+ * scrubbed so the values don't linger in browser history. This exists so a
+ * PaddleOCR server + API key can be shared with other people as a link
+ * instead of a secret baked into the public JS bundle (which ships to every
+ * visitor, not just the people it's meant for). Tesseract stays the primary
+ * engine (see ocr/index.ts's extractTextWithFallback) - this only makes the
+ * PaddleOCR fallback available, it doesn't switch anyone's primary engine.
  */
 function applySetupLinkParams(settings: AppSettings): AppSettings {
   const params = new URLSearchParams(window.location.search);
@@ -18,7 +20,6 @@ function applySetupLinkParams(settings: AppSettings): AppSettings {
 
   const next: AppSettings = {
     ...settings,
-    ocrEngine: 'paddleocr',
     ...(paddleUrl ? { paddleOcrServerUrl: paddleUrl } : {}),
     ...(paddleKey ? { paddleOcrApiKey: paddleKey } : {}),
   };

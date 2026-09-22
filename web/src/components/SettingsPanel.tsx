@@ -38,10 +38,16 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
               onChange={(e) => onChange({ ...settings, ocrEngine: e.target.value as AppSettings['ocrEngine'] })}
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
-              <option value="tesseract">Tesseract.js — on-device, private, works offline</option>
+              <option value="tesseract">Tesseract.js — on-device, private, works offline (recommended)</option>
               <option value="cloud-vision">Google Cloud Vision — cloud, more accurate on photos</option>
-              <option value="paddleocr">PaddleOCR — local server, best at small/faint text</option>
+              <option value="paddleocr">PaddleOCR only — force every scan through the PaddleOCR server</option>
             </select>
+            {settings.ocrEngine === 'tesseract' && (
+              <p className="mt-1 text-xs text-slate-500">
+                When a scan comes back with low confidence, PaddleOCR (if configured below) is automatically tried as
+                a second opinion — no need to switch engines manually.
+              </p>
+            )}
           </div>
 
           {settings.ocrEngine === 'cloud-vision' && (
@@ -61,10 +67,12 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
             </div>
           )}
 
-          {settings.ocrEngine === 'paddleocr' && (
+          {settings.ocrEngine !== 'cloud-vision' && (
             <div className="rounded border border-blue-300 bg-blue-50 p-3 text-sm">
               <p className="mb-2 text-blue-900">
-                PaddleOCR needs a small server running — see{' '}
+                {settings.ocrEngine === 'paddleocr'
+                  ? 'PaddleOCR needs a small server running — see '
+                  : 'Optional: configure a PaddleOCR server as an automatic fallback for low-confidence scans — see '}
                 <code className="rounded bg-blue-100 px-1">ocr-server/README.md</code> in the project for setup. Run
                 it on your own machine (leave the API key blank) for a purely local, offline setup, or deploy it
                 somewhere internet-reachable so a phone away from your local network can use it too — set an API key
