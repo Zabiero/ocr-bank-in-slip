@@ -498,6 +498,11 @@ export interface PreprocessResult {
   canvas: HTMLCanvasElement;
   imageDataUrl: string;
   thumbnailDataUrl: string;
+  /** The original photo in full colour, only EXIF-rotated upright - before
+   * crop/deskew/black-and-white thresholding. Kept so the app can show the
+   * real photo back to the user, since the OCR-ready version is intentionally
+   * cropped and reduced to pure black-and-white and isn't what they took. */
+  originalImageDataUrl: string;
 }
 
 /**
@@ -527,6 +532,7 @@ const MIN_OCR_WIDTH = 1600;
 
 export async function preprocessImage(file: File): Promise<PreprocessResult> {
   const loadedCanvas = await loadFileToCanvas(file);
+  const originalImageDataUrl = loadedCanvas.toDataURL('image/jpeg', 0.9);
   const skewAngle = detectSkewAngle(loadedCanvas);
   const sourceCanvas = rotateCanvas(loadedCanvas, skewAngle);
   const ctx = sourceCanvas.getContext('2d')!;
@@ -564,5 +570,6 @@ export async function preprocessImage(file: File): Promise<PreprocessResult> {
     canvas: cropped,
     imageDataUrl: cropped.toDataURL('image/jpeg', 0.9),
     thumbnailDataUrl: thumbnail.toDataURL('image/jpeg', 0.8),
+    originalImageDataUrl,
   };
 }

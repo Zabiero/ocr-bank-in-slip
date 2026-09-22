@@ -172,6 +172,12 @@ confident.
 - **Clear all data** in Settings permanently deletes every stored slip and
   setting from this browser.
 
+Clicking a slip's thumbnail opens a full-size preview showing the
+**processed** image (cropped, deskewed, black-and-white) that OCR actually
+read — click **"Show original photo"** in that preview to switch to the
+original, full-colour, upright photo you captured or uploaded. Both versions
+are kept for every slip.
+
 ## Known limitations
 
 - Image preprocessing (`src/imageProcessing/preprocess.ts`) uses a

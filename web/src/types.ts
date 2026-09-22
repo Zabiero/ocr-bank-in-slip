@@ -37,10 +37,12 @@ export interface SlipRecord {
   id: string;
   createdAt: number;
   fileName: string;
-  /** Preprocessed image, stored as a data URL so it round-trips through IndexedDB. */
+  /** Preprocessed (cropped, deskewed, black-and-white) image, stored as a data URL so it round-trips through IndexedDB. */
   imageDataUrl: string;
   /** Small thumbnail for the results table. */
   thumbnailDataUrl: string;
+  /** The original photo in full colour, only upright (EXIF-rotated) - before crop/deskew/thresholding. */
+  originalImageDataUrl?: string;
   /** Raw OCR text with any detected account numbers masked out. */
   ocrText: string;
   ocrConfidence: number;

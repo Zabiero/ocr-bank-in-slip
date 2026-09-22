@@ -19,7 +19,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
 
   try {
     onStage?.('preprocessing');
-    const { canvas, imageDataUrl, thumbnailDataUrl } = await preprocessImage(file);
+    const { canvas, imageDataUrl, thumbnailDataUrl, originalImageDataUrl } = await preprocessImage(file);
 
     onStage?.('ocr');
     const engine = getOcrEngine(settings);
@@ -36,6 +36,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
         fileName: file.name,
         imageDataUrl,
         thumbnailDataUrl,
+        originalImageDataUrl,
         ocrText: '',
         ocrConfidence: ocrResult.confidence,
         ocrEngine: engine.id,
@@ -51,6 +52,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
       fileName: file.name,
       imageDataUrl,
       thumbnailDataUrl,
+      originalImageDataUrl,
       ocrText: maskedText,
       ocrConfidence: ocrResult.confidence,
       ocrEngine: engine.id,
