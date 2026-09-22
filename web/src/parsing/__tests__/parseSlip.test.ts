@@ -186,6 +186,32 @@ PaymentModenasElit
 This receipt is computer generated and no signature is
 required.`;
 
+// Real Tesseract output (captured verbatim, SPARSE_TEXT mode - note the
+// blank line after every fragment) from a Setel DuitNow QR payment
+// screenshot. No "Amount"/"Total" label exists on this slip at all, just
+// "RM18.50" standing alone - so parseAmount falls back to the first
+// currency-prefixed number in the whole text, found via a regex that
+// allowed \s (which matches newlines) inside a money token. That let the
+// match greedily continue across the blank line into "ONEPLUSONENANYANG
+// COFFEE" on the next fragment, absorbing its leading "O" (one of the OCR-
+// misread letters this regex maps to a digit) as "18.50\n\nO" -> 18500
+// instead of 18.5.
+const SETEL_SCREENSHOT_SLIP = `Payment successful
+
+RM18.50
+
+ONEPLUSONENANYANGCOFFEE
+
+Transaction time
+
+21 Sep 2026, 09:30
+
+Transaction ID
+
+6AB088C9678A24E1BD06DE
+
+05`;
+
 // Actual OCR output (captured verbatim via "View text") from a real DuitNow
 // transfer receipt photo. Tesseract dropped the leading character of nearly
 // every label on this particular photo ("Transaction" -> "ransaction",
@@ -400,6 +426,14 @@ describe('parseSlip', () => {
     expect(parsed.time.value).toBe('06:24:00 PM');
     expect(parsed.amount.value).toBe(4000);
     expect(parsed.referenceNo.value).toBe('20260917RPPEMYKL010HRB80620236');
+  });
+
+  it('does not let a bare unlabeled amount greedily absorb a letter from the next unrelated line', () => {
+    const { parsed } = parseSlip(SETEL_SCREENSHOT_SLIP);
+
+    expect(parsed.amount.value).toBe(18.5);
+    expect(parsed.date.value).toBe('21-09-2026');
+    expect(parsed.time.value).toBe('09:30:00 AM');
   });
 
   it('matches "Reference No" even with its leading letter dropped, not "Service Reference No" instead', () => {

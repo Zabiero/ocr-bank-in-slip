@@ -5,8 +5,15 @@ const AMOUNT_KEYWORD = /\b(amount|amaun|total|jumlah)\b/i;
 const CURRENCY_PREFIX_SRC = '(RM|MYR|\\$)';
 
 // Digits plus their common OCR misreads (O/o -> 0, l/I -> 1, S/s -> 5, B/b -> 8),
-// separated by thousand/decimal punctuation or stray whitespace from the scan.
-const NUMERIC_TOKEN_SRC = '[0-9OolISB](?:[0-9OolISB,.\\s]{0,17}[0-9OolISB])?';
+// separated by thousand/decimal punctuation or stray whitespace from the
+// scan - but never a newline. Tesseract's SPARSE_TEXT output puts blank
+// lines between fragments, so allowing \s (which matches newlines) here let
+// this greedily absorb the first letter of a completely unrelated line
+// right after the amount whenever that letter happened to be one of the
+// OCR-misread ones - confirmed on a real slip: "RM18.50" followed by
+// "ONEPLUSONENANYANGCOFFEE" on the next line matched as "18.50\n\nO",
+// which 'O' -> '0' then turned into 18500 instead of 18.5.
+const NUMERIC_TOKEN_SRC = '[0-9OolISB](?:[0-9OolISB,.\\t ]{0,17}[0-9OolISB])?';
 
 // Currency prefix is optional here (labels like "Amount"/"Total" already tell
 // us this is a money field even without RM/MYR/$ in front of the number).
