@@ -3,8 +3,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # libgl1/libglib2.0-0: required by OpenCV, a PaddleOCR dependency.
+# libgomp1: OpenMP runtime PaddlePaddle's compiled core (libpaddle) is linked
+# against - missing on this slim base image, causing
+# "ImportError: libgomp.so.1: cannot open shared object file" at startup.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 \
+    libgl1 libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
