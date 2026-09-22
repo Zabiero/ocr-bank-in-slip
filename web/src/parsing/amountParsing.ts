@@ -1,5 +1,4 @@
 import type { ParsedField } from '../types';
-import { nextNonEmptyLine, previousNonEmptyLine } from './lineUtils';
 
 const AMOUNT_KEYWORD = /\b(amount|amaun|total|jumlah)\b/i;
 const CURRENCY_PREFIX_SRC = '(RM|MYR|\\$)';
@@ -64,6 +63,19 @@ function firstRealMatch(regex: RegExp, text: string): RegExpExecArray | null {
   return null;
 }
 
+// How many non-blank lines to search around a label before giving up - not
+// raw line indices. Tesseract's SPARSE_TEXT mode puts a blank line after
+// every fragment, and some documents (e.g. a fixed-width-font payment
+// advice with "Label / : / : / value" alignment padding) put several more
+// non-value fragments between a label and its value on top of that -
+// confirmed on a real Citi payment advice where "Invoice Amount" and its
+// "3,300.00" value were separated by two lone ":" fragments, each on its
+// own blank-padded line. Counting only real fragments (not raw line
+// position) and continuing past ones with no usable value in them (like a
+// lone ":") - rather than stopping at the first non-blank line the way
+// nextNonEmptyLine/previousNonEmptyLine do - handles this.
+const LOOKAROUND_LINES = 5;
+
 export function parseAmount(text: string): { amount: ParsedField<number>; currency: ParsedField<string> } {
   const lines = text.split(/\r?\n/);
 
@@ -80,30 +92,36 @@ export function parseAmount(text: string): { amount: ParsedField<number>; curren
     }
 
     // A label-left/value-right table can be read column-by-column, putting
-    // the value on the line right before its own label - check that first,
-    // since it's the pattern actually observed on a real receipt (see
-    // previousNonEmptyLine). Currency prefix is required here (unlike the
-    // same-line/next-line checks below): the previous line is more likely to
-    // be unrelated content from a different field (e.g. a reference number),
-    // and a bare number there is too easy to mistake for an amount.
-    const previousLine = previousNonEmptyLine(lines, i - 1);
-    if (previousLine) {
-      const previousLineMatch = firstRealMatch(MONEY_TOKEN_WITH_CURRENCY_G, previousLine);
+    // the value on a line *before* its own label - check that first, since
+    // it's the pattern actually observed on a real receipt. Currency prefix
+    // is required here (unlike the forward search below): a line above is
+    // more likely to be unrelated content from a different field (e.g. a
+    // reference number), and a bare number there is too easy to mistake for
+    // an amount.
+    for (let j = i - 1, seen = 0; j >= 0 && seen < LOOKAROUND_LINES; j--) {
+      if (lines[j].trim() === '') continue;
+      seen++;
+      const previousLineMatch = firstRealMatch(MONEY_TOKEN_WITH_CURRENCY_G, lines[j]);
       if (previousLineMatch) {
         bestMatch = { raw: previousLineMatch[2], prefix: previousLineMatch[1], nearKeyword: true };
         break;
       }
     }
+    if (bestMatch) break;
 
-    // Some receipts put the label and value on separate lines - check the next non-blank line too.
-    const nextLine = nextNonEmptyLine(lines, i + 1);
-    if (nextLine) {
-      const nextLineMatch = firstRealMatch(MONEY_TOKEN_G, nextLine);
+    // Some receipts put the label and value on separate lines, sometimes
+    // with other non-value fragments (blank padding, a lone ":") between
+    // them - search a window of following fragments rather than just one.
+    for (let j = i + 1, seen = 0; j < lines.length && seen < LOOKAROUND_LINES; j++) {
+      if (lines[j].trim() === '') continue;
+      seen++;
+      const nextLineMatch = firstRealMatch(MONEY_TOKEN_G, lines[j]);
       if (nextLineMatch) {
         bestMatch = { raw: nextLineMatch[2], prefix: nextLineMatch[1], nearKeyword: true };
         break;
       }
     }
+    if (bestMatch) break;
   }
 
   if (!bestMatch) {

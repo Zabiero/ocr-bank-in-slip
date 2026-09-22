@@ -274,6 +274,56 @@ Amount
 
 RM 1500.00`;
 
+// Actual OCR output (captured verbatim via "View text") from a real Citi
+// bank "Payment Advice" - a fixed-width-font document whose "Label  :
+// value" alignment padding gets split into extra fragments by Tesseract:
+// "Invoice Amount" is followed by two lone ":" fragments (each on its own
+// blank-padded line) before the real "3,300.00" value. parseAmount's old
+// next-line check only looked at the single nearest non-blank line
+// (nextNonEmptyLine) - that line was just ":", contained no usable number,
+// and the search gave up right there instead of continuing to the next
+// fragment, so amount came back missing even though the value was two
+// fragments further down.
+const CITI_PAYMENT_ADVICE_SLIP = `DATE
+
+:
+
+:
+
+28-Aug-26
+
+Bank Reference
+
+:
+
+QM8SC1658HY00128
+
+Invoice Amount
+
+:
+
+:
+
+3,300.00
+
+Currency
+
+:
+
+MYR
+
+Credit Date
+
+:
+
+28-Aug-26
+
+Payment Details
+
+:
+
+DIV-003006`;
+
 // Actual OCR output (captured verbatim via "View text") from a real DuitNow
 // transfer receipt photo. Tesseract dropped the leading character of nearly
 // every label on this particular photo ("Transaction" -> "ransaction",
@@ -503,6 +553,14 @@ describe('parseSlip', () => {
 
     expect(parsed.amount.value).toBe(3499.83);
     expect(parsed.date.value).toBe('27-07-2026');
+  });
+
+  it('finds an amount past intervening lone ":" fragments, not just the single nearest non-blank line', () => {
+    const { parsed } = parseSlip(CITI_PAYMENT_ADVICE_SLIP);
+
+    expect(parsed.amount.value).toBe(3300);
+    expect(parsed.date.value).toBe('28-08-2026');
+    expect(parsed.referenceNo.value).toBe('QM8SC1658HY00128');
   });
 
   it('finds a reference no. that sits several blank-line-separated fragments past its label', () => {
