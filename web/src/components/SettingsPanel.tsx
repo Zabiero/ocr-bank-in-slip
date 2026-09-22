@@ -41,7 +41,6 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
               <option value="tesseract">Tesseract.js — on-device, private, works offline</option>
               <option value="cloud-vision">Google Cloud Vision — cloud, more accurate on photos</option>
               <option value="paddleocr">PaddleOCR — local server, best at small/faint text</option>
-              <option value="ocr-space">OCR.space — cloud, generous free tier</option>
             </select>
           </div>
 
@@ -57,24 +56,6 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
                 value={settings.cloudVisionApiKey}
                 onChange={(e) => onChange({ ...settings, cloudVisionApiKey: e.target.value })}
                 placeholder="AIza…"
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              />
-            </div>
-          )}
-
-          {settings.ocrEngine === 'ocr-space' && (
-            <div className="rounded border border-yellow-300 bg-yellow-50 p-3 text-sm">
-              <p className="mb-2 text-yellow-800">
-                OCR.space sends each slip photo to ocr.space's servers using your own API key. The free tier caps
-                images at 1MB, so an already-compressed slip photo may need further downscaling to fit. The key is
-                stored only in this browser's local storage.
-              </p>
-              <label className="block text-xs font-medium text-slate-700">OCR.space API key</label>
-              <input
-                type="password"
-                value={settings.ocrSpaceApiKey}
-                onChange={(e) => onChange({ ...settings, ocrSpaceApiKey: e.target.value })}
-                placeholder="K8…"
                 className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>
@@ -101,8 +82,7 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
           <div className="border-t border-slate-200 pt-4">
             <p className="mb-2 text-sm text-slate-600">
               All slips and settings are stored only in this browser (IndexedDB/local storage) — nothing is uploaded
-              unless you enable Cloud Vision or OCR.space above. Account numbers detected on slips are masked
-              automatically.
+              unless you enable Cloud Vision above. Account numbers detected on slips are masked automatically.
             </p>
             <button
               type="button"

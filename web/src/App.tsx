@@ -122,8 +122,6 @@ export default function App() {
               'Cloud Vision is enabled — slip photos are sent to Google using your API key.'}
             {settings.ocrEngine === 'paddleocr' &&
               'PaddleOCR (local server) is enabled — slip photos are sent to your own local server, not the internet.'}
-            {settings.ocrEngine === 'ocr-space' &&
-              'OCR.space is enabled — slip photos are sent to ocr.space using your API key.'}
           </p>
         </div>
         <button
