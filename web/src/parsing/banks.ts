@@ -1,11 +1,14 @@
 import type { Bank } from '../types';
 
 /**
- * Known Malaysian banks and OCR-friendly aliases (short codes, common
- * misspellings, header text seen on real slips). To add a bank, append an
- * entry here — see README.md "Adding a new bank" for details. Order matters
- * only in that the first, most-specific match wins, so keep longer/more
- * specific aliases before generic ones within a bank's own list.
+ * Known Malaysian banks, digital banks and e-wallet/digital-payment apps
+ * (a "Bank" entry here is really "who issued this receipt" - a slip from
+ * Touch 'n Go eWallet or GrabPay is just as valid a source as one from
+ * Maybank), plus OCR-friendly aliases (short codes, common misspellings,
+ * header text seen on real slips/screenshots). To add one, append an entry
+ * here — see README.md "Adding a new bank" for details. Order matters only
+ * in that the first, most-specific match wins, so keep longer/more specific
+ * aliases before generic ones within an entry's own list.
  */
 export const BANKS: Bank[] = [
   {
@@ -115,6 +118,35 @@ export const BANKS: Bank[] = [
   {
     name: 'YTL Digital Bank',
     aliases: ['ytl digital bank', 'ryt bank'],
+  },
+  // Digital wallets / e-money apps commonly used for peer-to-peer and
+  // merchant payments in Malaysia - their receipts/screenshots look nothing
+  // like a bank's, but are just as common a source for this app.
+  {
+    name: "Touch 'n Go eWallet",
+    aliases: ["touch 'n go ewallet", 'touch n go ewallet', 'tng ewallet', 'tng digital', 'tng'],
+  },
+  {
+    name: 'ShopeePay',
+    aliases: ['shopeepay', 'shopee pay'],
+  },
+  {
+    name: 'GrabPay',
+    aliases: ['grabpay', 'grab pay', 'grab wallet'],
+  },
+  {
+    name: 'Boost',
+    // Distinct from "Boost Bank" above (the BNM-licensed digital bank) -
+    // this is the older Boost e-wallet app from the same group.
+    aliases: ['boost ewallet', 'boost e-wallet', 'boost'],
+  },
+  {
+    name: 'Setel',
+    aliases: ['setel'],
+  },
+  {
+    name: 'BigPay',
+    aliases: ['bigpay', 'big pay'],
   },
 ];
 

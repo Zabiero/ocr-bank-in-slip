@@ -34,7 +34,7 @@ web/
       amountParsing.ts           Currency prefixes, thousand separators, OCR digit confusions
       referenceParsing.ts        Reference/transaction-ID labels (EN + BM)
       maskAccountNumbers.ts      Masks account numbers found near an "Account No" label
-      banks.ts                   Configurable bank name + alias list
+      banks.ts                   Configurable bank/e-wallet name + alias list
       __tests__/parseSlip.test.ts  5+ realistic sample slips, one test per bank/edge case
 
     storage/
@@ -96,9 +96,12 @@ implement `OcrEngine` in a new file under `src/ocr/` and wire it into
 `getOcrEngine()` in `src/ocr/index.ts` — nothing else in the app needs to
 change.
 
-## Adding a new bank
+## Adding a new bank (or e-wallet)
 
-Edit `src/parsing/banks.ts` and append an entry to the `BANKS` array:
+The "Bank" field really means "who issued this receipt" — `src/parsing/banks.ts`
+already covers Malaysia's licensed banks and digital banks alongside common
+digital wallets/e-money apps (Touch 'n Go eWallet, ShopeePay, GrabPay, Boost,
+Setel, BigPay). To add another one, append an entry to the `BANKS` array:
 
 ```ts
 {

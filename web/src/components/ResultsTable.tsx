@@ -32,7 +32,7 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
             <th className="w-28 px-3 py-2">Time</th>
             <th className="w-28 px-3 py-2">Amount</th>
             <th className="w-36 px-3 py-2">Reference No.</th>
-            <th className="w-32 px-3 py-2">Bank</th>
+            <th className="w-32 px-3 py-2">Bank / Wallet</th>
             <th className="w-28 px-3 py-2">Status</th>
             <th className="w-24 px-3 py-2">Actions</th>
           </tr>

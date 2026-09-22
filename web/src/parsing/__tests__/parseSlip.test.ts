@@ -606,4 +606,25 @@ describe('parseSlip', () => {
     const { parsed } = parseSlip('Date: 03/04/2026\nAmount: RM10.00');
     expect(parsed.date.value).toBe('03-04-2026');
   });
+
+  it('recognizes digital wallet/e-money apps as valid bank sources, not just banks', () => {
+    const cases: Array<[string, string]> = [
+      ["Touch 'n Go eWallet\nPayment Successful\nDate: 12/09/2026\nAmount: RM5.00", "Touch 'n Go eWallet"],
+      ['ShopeePay\nPayment Receipt\nDate: 12/09/2026\nAmount: RM20.00', 'ShopeePay'],
+      ['GrabPay\nTransaction Successful\nDate: 12/09/2026\nAmount: RM8.50', 'GrabPay'],
+      ['Boost eWallet\nPayment Successful\nDate: 12/09/2026\nAmount: RM15.00', 'Boost'],
+      ['Setel\nPayment Successful\nDate: 12/09/2026\nAmount: RM50.00', 'Setel'],
+      ['BigPay\nTransfer Successful\nDate: 12/09/2026\nAmount: RM100.00', 'BigPay'],
+    ];
+
+    for (const [text, expectedBank] of cases) {
+      const { parsed } = parseSlip(text);
+      expect(parsed.bank.value).toBe(expectedBank);
+    }
+  });
+
+  it("doesn't confuse the Boost e-wallet with Boost Bank (the digital bank)", () => {
+    const { parsed } = parseSlip('Boost Bank\nTransfer Receipt\nDate: 12/09/2026\nAmount: RM30.00');
+    expect(parsed.bank.value).toBe('Boost Bank');
+  });
 });
