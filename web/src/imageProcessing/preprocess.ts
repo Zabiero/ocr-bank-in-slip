@@ -99,6 +99,124 @@ export async function loadFileToCanvas(file: File): Promise<HTMLCanvasElement> {
   return drawWithOrientation(img, orientationValue ?? 1);
 }
 
+function toGrayscale(canvas: HTMLCanvasElement): { data: Uint8ClampedArray; width: number; height: number } {
+  const ctx = canvas.getContext('2d')!;
+  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const gray = new Uint8ClampedArray(width * height);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+  return { data: gray, width, height };
+}
+
+function grayscaleToCanvas(gray: Uint8ClampedArray, width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  const imageData = ctx.createImageData(width, height);
+  for (let p = 0; p < gray.length; p++) {
+    const v = gray[p];
+    imageData.data[p * 4] = v;
+    imageData.data[p * 4 + 1] = v;
+    imageData.data[p * 4 + 2] = v;
+    imageData.data[p * 4 + 3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+/** Rotates a canvas by angleDeg around its center, expanding the canvas so nothing is clipped. Corners are filled white. */
+function rotateCanvas(canvas: HTMLCanvasElement, angleDeg: number): HTMLCanvasElement {
+  if (Math.abs(angleDeg) < 0.05) return canvas;
+
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const newWidth = Math.round(canvas.width * cos + canvas.height * sin);
+  const newHeight = Math.round(canvas.width * sin + canvas.height * cos);
+
+  const rotated = document.createElement('canvas');
+  rotated.width = newWidth;
+  rotated.height = newHeight;
+  const ctx = rotated.getContext('2d')!;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, newWidth, newHeight);
+  ctx.translate(newWidth / 2, newHeight / 2);
+  ctx.rotate(rad);
+  ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  return rotated;
+}
+
+/**
+ * Scores how "horizontally banded" a grayscale image is: perfectly horizontal
+ * text lines create sharp row-to-row swings in darkness (in a line vs.
+ * between lines), which rotation smears into a flatter profile. Used to pick
+ * the rotation angle that best straightens whatever text dominates the
+ * frame.
+ */
+function horizontalBandingScore(gray: Uint8ClampedArray, width: number, height: number): number {
+  const rowDarkness = new Float64Array(height);
+  for (let y = 0; y < height; y++) {
+    let sum = 0;
+    const base = y * width;
+    for (let x = 0; x < width; x++) sum += 255 - gray[base + x];
+    rowDarkness[y] = sum;
+  }
+  let variance = 0;
+  for (let y = 1; y < height; y++) {
+    const d = rowDarkness[y] - rowDarkness[y - 1];
+    variance += d * d;
+  }
+  return variance;
+}
+
+/**
+ * Detects a document's rotation by testing candidate angles on a small
+ * downsampled copy and picking whichever produces the sharpest horizontal
+ * text-line banding (see horizontalBandingScore). A coarse pass across a
+ * wide range is refined with a finer pass around the best coarse angle.
+ * Cheap (~30 small rotations) since it operates on a <=300px copy, not the
+ * full-resolution photo.
+ */
+function detectSkewAngle(canvas: HTMLCanvasElement): number {
+  const scale = Math.min(1, 300 / Math.max(canvas.width, canvas.height));
+  const small = document.createElement('canvas');
+  small.width = Math.max(1, Math.round(canvas.width * scale));
+  small.height = Math.max(1, Math.round(canvas.height * scale));
+  small.getContext('2d')!.drawImage(canvas, 0, 0, small.width, small.height);
+  const { data: baseGray, width: baseWidth, height: baseHeight } = toGrayscale(small);
+  const baseCanvas = grayscaleToCanvas(baseGray, baseWidth, baseHeight);
+
+  const scoreAt = (angleDeg: number): number => {
+    const rotated = rotateCanvas(baseCanvas, angleDeg);
+    const { data, width, height } = toGrayscale(rotated);
+    return horizontalBandingScore(data, width, height);
+  };
+
+  let bestAngle = 0;
+  let bestScore = scoreAt(0);
+  for (let angle = -20; angle <= 20; angle += 2) {
+    if (angle === 0) continue;
+    const score = scoreAt(angle);
+    if (score > bestScore) {
+      bestScore = score;
+      bestAngle = angle;
+    }
+  }
+
+  const coarse = bestAngle;
+  for (let angle = coarse - 1.75; angle <= coarse + 1.75; angle += 0.25) {
+    const score = scoreAt(angle);
+    if (score > bestScore) {
+      bestScore = score;
+      bestAngle = angle;
+    }
+  }
+
+  return bestAngle;
+}
+
 /** Simple content bounding box via row/column luminance projection, with padding. */
 function autoCropBounds(imageData: ImageData): { x: number; y: number; width: number; height: number } {
   const { data, width, height } = imageData;
@@ -171,11 +289,15 @@ export interface PreprocessResult {
 }
 
 /**
- * Applies auto-crop, grayscale conversion and contrast stretching. This is a
- * lightweight Canvas-based pipeline, not a full computer-vision pipeline:
- * EXIF-based auto-rotation is exact, but the crop is a plain content
- * bounding box (not perspective-corrected) and there is no true deskew. See
- * README.md for how to swap in OpenCV.js for a more advanced pipeline.
+ * Applies deskew, auto-crop, grayscale conversion and contrast stretching.
+ * This is a lightweight Canvas-based pipeline, not a full computer-vision
+ * pipeline: EXIF-based auto-rotation is exact and deskew (detectSkewAngle)
+ * straightens whatever rotation the whole frame has, but there is no true
+ * perspective correction - a document photographed at a steep angle (not
+ * just rotated flat-on) or surrounded by heavy background clutter (other
+ * papers, handwriting) won't be perfectly isolated. See README.md for how
+ * to swap in OpenCV.js for a more advanced pipeline (contour detection +
+ * perspective warp).
  */
 // Small/faint text (e.g. secondary UI text on a downscaled phone
 // screenshot) is easy for OCR to miss when the source image itself is
@@ -194,7 +316,9 @@ const MIN_OCR_WIDTH = 1600;
 // its own copy of the canvas, not here.
 
 export async function preprocessImage(file: File): Promise<PreprocessResult> {
-  const sourceCanvas = await loadFileToCanvas(file);
+  const loadedCanvas = await loadFileToCanvas(file);
+  const skewAngle = detectSkewAngle(loadedCanvas);
+  const sourceCanvas = rotateCanvas(loadedCanvas, skewAngle);
   const ctx = sourceCanvas.getContext('2d')!;
   const bounds = autoCropBounds(ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height));
 
