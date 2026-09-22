@@ -217,6 +217,9 @@ Transaction ID
 // above holds on a second real slip with the same "unlabeled currency-
 // prefixed amount, blank line before the next fragment" shape ("rm3,499.83"
 // lowercase, no "Amount"/"Total" keyword line anywhere on this slip either).
+// Also confirms the "SPayLater" -> ShopeePay alias holds against the real
+// shape OCR actually produces here: split at the capital "L" as "SPayL
+// ater", not the clean "SPayLater" used when first adding the alias.
 const SHOPEE_INSTALMENT_SLIP = `< Transaction Details
 
 rm3,499.83
@@ -225,7 +228,7 @@ Order Amount
 
 Paid by
 
-SPayLater Instalment
+SPayL ater Instalment
 
 Period
 
@@ -233,7 +236,29 @@ Period
 
 Created Time
 
-27 Jul 2026 19:03`;
+27 Jul 2026 19:03
+
+Products
+
+In Store - DARMA MOTOR SDN
+
+BHD
+
+Pay To
+
+DARMA MOTOR SDN BHD
+
+Transaction ID
+
+2192975866927343627
+
+Order ID
+
+ATBVrZMj15NFN
+
+Original Receipt
+
+Instalment Details`;
 
 // Real Tesseract output (captured verbatim via native Tesseract against the
 // app's exact preprocessing, not hand-typed) from a real Maybank "Share
@@ -621,6 +646,7 @@ describe('parseSlip', () => {
     expect(parsed.bank.value).toBe('ShopeePay');
     expect(parsed.amount.value).toBe(3499.83);
     expect(parsed.date.value).toBe('27-07-2026');
+    expect(parsed.referenceNo.value).toBe('2192975866927343627');
   });
 
   it('finds an amount past intervening lone ":" fragments, not just the single nearest non-blank line', () => {

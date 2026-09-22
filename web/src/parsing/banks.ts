@@ -131,7 +131,10 @@ export const BANKS: Bank[] = [
     // SPayLater (Shopee's "buy now, pay later" instalment product) receipts
     // never actually print "Shopee"/"ShopeePay" anywhere - "SPayLater" is
     // the only brand text OCR ever sees, so it needs its own alias here.
-    aliases: ['shopeepay', 'shopee pay', 'spaylater'],
+    // Confirmed on a real screenshot: OCR splits it at the capital "L" as
+    // "SPayL ater" (a stray space mid-word), so that exact shape needs its
+    // own alias too - a plain "spaylater" substring check won't match it.
+    aliases: ['shopeepay', 'shopee pay', 'spaylater', 'spayl ater'],
   },
   {
     name: 'GrabPay',
