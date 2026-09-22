@@ -154,28 +154,34 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
           onClick={() => setPreviewSlip(null)}
         >
           <div className="max-h-full max-w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 flex items-center justify-between text-white">
-              <span className="truncate pr-4 text-sm">{previewSlip.fileName}</span>
-              <div className="flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between gap-3 text-white">
+              <span className="truncate text-sm">{previewSlip.fileName}</span>
+              <div className="flex shrink-0 items-center gap-2">
                 {previewSlip.originalImageDataUrl && (
                   <button
                     type="button"
                     onClick={() => setShowOriginal((v) => !v)}
-                    className="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20"
+                    className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg ring-2 ring-blue-400/50 hover:bg-blue-500"
                   >
-                    {showOriginal ? 'Show processed' : 'Show original photo'}
+                    <span aria-hidden="true">🖼️</span>
+                    {showOriginal ? 'Show processed (B&W)' : 'Show original photo'}
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setPreviewSlip(null)}
-                  className="rounded-full bg-white/10 px-3 py-1 text-sm hover:bg-white/20"
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
                   aria-label="Close"
                 >
                   ✕ Close
                 </button>
               </div>
             </div>
+            {previewSlip.originalImageDataUrl && (
+              <p className="mb-1 text-center text-xs text-white/70">
+                Currently viewing: <span className="font-semibold text-white">{showOriginal ? 'original photo' : 'processed (B&W) image used for OCR'}</span>
+              </p>
+            )}
             {(() => {
               const src = showOriginal && previewSlip.originalImageDataUrl ? previewSlip.originalImageDataUrl : previewSlip.imageDataUrl;
               return src ? (
