@@ -50,8 +50,16 @@ export function parseReferenceNo(text: string): ParsedField<string> {
     // The value isn't always on the very next line: some receipts put
     // another field's text between a label and its value (e.g. a date/time
     // shown beside "Reference ID", with the actual reference number below
-    // both). Search a small window of following lines rather than just one.
-    for (let j = i + 1; j < Math.min(lines.length, i + 1 + LOOKAROUND_LINES); j++) {
+    // both). Search a small window of following lines rather than just one -
+    // counting only non-blank lines toward that window, not raw line
+    // indices: Tesseract's SPARSE_TEXT mode puts a blank line after every
+    // fragment, so "label, blank, date, blank, value" is 4 raw lines away
+    // despite being only 2 real fragments past the label. Confirmed on a
+    // real Maybank receipt - counting raw lines capped out one line short
+    // of the actual value and missed it entirely.
+    for (let j = i + 1, seen = 0; j < lines.length && seen < LOOKAROUND_LINES; j++) {
+      if (lines[j].trim() === '') continue;
+      seen++;
       const candidate = findRefValue(lines[j]);
       if (candidate) {
         return { value: candidate, confidence: 88, raw: `${keywordMatch[0]} / ${candidate}` };
@@ -62,7 +70,9 @@ export function parseReferenceNo(text: string): ParsedField<string> {
     // the value on a line *before* its own label instead of on or after it
     // (confirmed on a real DuitNow receipt, for a different field - the
     // same reading order applies here on some receipts).
-    for (let j = i - 1; j > Math.max(-1, i - 1 - LOOKAROUND_LINES); j--) {
+    for (let j = i - 1, seen = 0; j >= 0 && seen < LOOKAROUND_LINES; j--) {
+      if (lines[j].trim() === '') continue;
+      seen++;
       const candidate = findRefValue(lines[j]);
       if (candidate) {
         return { value: candidate, confidence: 85, raw: `${keywordMatch[0]} / ${candidate}` };

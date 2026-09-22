@@ -166,12 +166,25 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
   };
 
   let nearKeyword: Candidate | null = null;
+  // Non-blank lines only: Tesseract's SPARSE_TEXT mode puts a blank line
+  // after every fragment, so "label, blank, [other field], blank, value" is
+  // several raw lines away despite being only a couple of real fragments
+  // past the label - counting raw indices instead of real fragments capped
+  // out too early on a real receipt (confirmed: a value 2 fragments past
+  // its label sat 4 raw lines away and was missed).
   const MAX_LOOKAROUND = 3;
   for (let i = 0; i < lines.length && !nearKeyword; i++) {
     if (!DATE_KEYWORD.test(lines[i])) continue;
 
-    for (let j = i; j < Math.min(lines.length, i + 1 + MAX_LOOKAROUND); j++) {
-      if (j > i && lines[j].trim() === '') continue;
+    const foundSameLine = candidateOnLine(i);
+    if (foundSameLine) {
+      nearKeyword = foundSameLine;
+      break;
+    }
+
+    for (let j = i + 1, seen = 0; j < lines.length && seen < MAX_LOOKAROUND; j++) {
+      if (lines[j].trim() === '') continue;
+      seen++;
       const found = candidateOnLine(j);
       if (found) {
         nearKeyword = found;
@@ -180,8 +193,9 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
     }
     if (nearKeyword) break;
 
-    for (let j = i - 1; j > Math.max(-1, i - 1 - MAX_LOOKAROUND); j--) {
+    for (let j = i - 1, seen = 0; j >= 0 && seen < MAX_LOOKAROUND; j--) {
       if (lines[j].trim() === '') continue;
+      seen++;
       const found = candidateOnLine(j);
       if (found) {
         nearKeyword = found;

@@ -235,6 +235,45 @@ Created Time
 
 27 Jul 2026 19:03`;
 
+// Real Tesseract output (captured verbatim via native Tesseract against the
+// app's exact preprocessing, not hand-typed) from a real Maybank "Share
+// Receipt" screenshot. Unlike the older MOBILE_SHARE_RECEIPT_SLIP/
+// PADDLEOCR_MOBILE_SHARE_RECEIPT_SLIP fixtures above (written tight, no
+// blank lines - accurate for PaddleOCR's output shape, but PaddleOCR has
+// since been removed from the app entirely), Tesseract's SPARSE_TEXT mode
+// puts a blank line after every fragment. That pushed "960386438M" 4 raw
+// lines past its "Reference ID" label instead of 2, one line further than
+// parseReferenceNo's lookaround window counted (it counted blank lines
+// toward the limit instead of skipping them) - reference no. came back
+// null even though the value was right there a few fragments down.
+const MAYBANK_SHARE_RECEIPT_TESSERACT_SLIP = `Share Receipt
+
+Maybank
+
+Third Party Transfer
+
+Reference ID
+
+31 Jul 2026, 12:42 PM
+
+960386438M
+
+Beneficiary name
+
+INTERNATIONAL MONTES
+
+Beneficiary account number
+
+5623 8458 1700
+
+Recipient reference
+
+Cyrus See Yu Yang
+
+Amount
+
+RM 1500.00`;
+
 // Actual OCR output (captured verbatim via "View text") from a real DuitNow
 // transfer receipt photo. Tesseract dropped the leading character of nearly
 // every label on this particular photo ("Transaction" -> "ransaction",
@@ -464,6 +503,15 @@ describe('parseSlip', () => {
 
     expect(parsed.amount.value).toBe(3499.83);
     expect(parsed.date.value).toBe('27-07-2026');
+  });
+
+  it('finds a reference no. that sits several blank-line-separated fragments past its label', () => {
+    const { parsed } = parseSlip(MAYBANK_SHARE_RECEIPT_TESSERACT_SLIP);
+
+    expect(parsed.referenceNo.value).toBe('960386438M');
+    expect(parsed.date.value).toBe('31-07-2026');
+    expect(parsed.amount.value).toBe(1500);
+    expect(parsed.bank.value).toBe('Maybank');
   });
 
   it('matches "Reference No" even with its leading letter dropped, not "Service Reference No" instead', () => {
