@@ -67,10 +67,10 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   dateAmbiguityMode: 'day-first',
-  ocrEngine: 'tesseract',
+  ocrEngine: 'paddleocr',
   cloudVisionApiKey: '',
-  paddleOcrServerUrl: 'http://localhost:8000',
-  paddleOcrApiKey: '',
+  paddleOcrServerUrl: 'https://ocr-bank-in-slip.onrender.com',
+  paddleOcrApiKey: 'gcAErEa5qTsw9WUES4HLtyspWpJSRek6f-xV9CVPUW8',
 };
 
 export interface Bank {
