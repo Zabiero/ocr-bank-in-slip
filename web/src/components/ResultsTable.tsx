@@ -1,6 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { EditableSlipField } from '../parsing/parseSlip';
 import type { SlipRecord } from '../types';
+import { sortSlips, type SortColumn, type SortDirection } from '../sortSlips';
 import EditableCell from './EditableCell';
 import StatusBadge from './StatusBadge';
 
@@ -12,10 +13,65 @@ interface ResultsTableProps {
   rescanningId: string | null;
 }
 
+/** Default direction when a column is first clicked - amount/date read
+ * naturally highest/latest-first, while reference no./bank read A-Z first. */
+const DEFAULT_DIRECTION: Record<SortColumn, SortDirection> = {
+  date: 'desc',
+  time: 'desc',
+  amount: 'desc',
+  referenceNo: 'asc',
+  bank: 'asc',
+  status: 'asc',
+};
+
+function SortableHeader({
+  label,
+  column,
+  className,
+  sort,
+  onSort,
+}: {
+  label: string;
+  column: SortColumn;
+  className: string;
+  sort: { column: SortColumn; direction: SortDirection } | null;
+  onSort: (column: SortColumn) => void;
+}) {
+  const active = sort?.column === column;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={`flex items-center gap-1 hover:text-slate-700 ${active ? 'text-slate-700' : ''}`}
+        title={`Sort by ${label}`}
+      >
+        {label}
+        <span className="text-[10px]">{active ? (sort!.direction === 'asc' ? '▲' : '▼') : '⇅'}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescanningId }: ResultsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [previewSlip, setPreviewSlip] = useState<SlipRecord | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
+
+  const handleSort = (column: SortColumn) => {
+    setSort((current) => {
+      if (current?.column === column) {
+        return { column, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { column, direction: DEFAULT_DIRECTION[column] };
+    });
+  };
+
+  const sortedSlips = useMemo(
+    () => (sort ? sortSlips(slips, sort.column, sort.direction) : slips),
+    [slips, sort],
+  );
 
   if (slips.length === 0) {
     return <p className="py-12 text-center text-sm text-slate-500">No slips yet. Take a photo or upload one to get started.</p>;
@@ -28,17 +84,17 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="w-10 px-3 py-2">#</th>
             <th className="w-20 px-3 py-2">Slip</th>
-            <th className="w-28 px-3 py-2">Date</th>
-            <th className="w-28 px-3 py-2">Time</th>
-            <th className="w-28 px-3 py-2">Amount</th>
-            <th className="w-36 px-3 py-2">Reference No.</th>
-            <th className="w-32 px-3 py-2">Bank / Wallet</th>
-            <th className="w-28 px-3 py-2">Status</th>
+            <SortableHeader label="Date" column="date" className="w-28 px-3 py-2" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Time" column="time" className="w-28 px-3 py-2" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Amount" column="amount" className="w-28 px-3 py-2" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Reference No." column="referenceNo" className="w-36 px-3 py-2" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Bank / Wallet" column="bank" className="w-32 px-3 py-2" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Status" column="status" className="w-28 px-3 py-2" sort={sort} onSort={handleSort} />
             <th className="w-24 px-3 py-2">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {slips.map((slip, i) => (
+          {sortedSlips.map((slip, i) => (
             <Fragment key={slip.id}>
             <tr className="border-b border-slate-100 align-top last:border-0">
               <td className="px-3 py-2 text-slate-500">{i + 1}</td>

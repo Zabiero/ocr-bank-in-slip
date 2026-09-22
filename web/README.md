@@ -16,6 +16,7 @@ web/
     types.ts                 Shared types: SlipRecord, ParsedSlip, AppSettings, ...
     processFile.ts            Orchestrates one file: preprocess -> OCR -> parse -> SlipRecord
     duplicateDetection.ts     Same reference no. + amount => duplicate warning
+    sortSlips.ts              Sorts slips by any column, missing values always last
 
     imageProcessing/
       preprocess.ts            PDF/HEIC decoding, EXIF auto-rotate, auto-crop,
@@ -158,6 +159,16 @@ found at all - is also ≥ 80% confident.
 
 Click any cell to correct it — a manual edit is always treated as 100%
 confident.
+
+## Sorting
+
+Click any column header in the results table (Date, Time, Amount, Reference
+No., Bank/Wallet, Status) to sort by it; click again to flip between
+ascending and descending. Date/Amount default to newest/highest first,
+Reference No./Bank/Status default to A-Z, matching how each is normally
+read. A slip missing that field always sorts to the bottom, in either
+direction — a blank isn't a low value, it's not a value at all. Implemented
+in `src/sortSlips.ts`, unit tested independently of the table component.
 
 ## Privacy
 
