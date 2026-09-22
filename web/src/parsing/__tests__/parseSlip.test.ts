@@ -186,6 +186,58 @@ PaymentModenasElit
 This receipt is computer generated and no signature is
 required.`;
 
+// Actual OCR output (captured verbatim via "View text") from a real DuitNow
+// transfer receipt photo. Tesseract dropped the leading character of nearly
+// every label on this particular photo ("Transaction" -> "ransaction",
+// "Product" -> "roduct", "Reference No" -> "eference No", ...) - critically,
+// "Reference No" losing its "R" means it no longer matches a keyword regex
+// that requires "reference" to start intact, so the parser skipped right
+// past the real field and matched "Service Reference No" (OCR'd as "rvice
+// Reference No" - only "Se" dropped, but "Reference No" itself sits further
+// into that line so it survives untouched) instead, returning the wrong
+// number entirely.
+const DUITNOW_DROPPED_LEADING_CHAR_SLIP = `Transaction Details
+
+roduct Type
+
+DuitNow Transfer
+
+eference No
+
+26090703838771
+
+rvice Reference No
+
+444831
+
+proval Status
+
+Success
+
+m Account
+
+3234676925 / JH JAYA MOTORSPORT SC
+
+nsfer Mode
+
+New Transfer
+
+pient Bank
+
+Hong Leong Bank Berhad
+
+pient Reference
+
+DIV-003535
+
+ount
+
+MYR 10,678.00
+
+Payment Date
+
+07-Sep-2026`;
+
 // Real Tesseract output (captured verbatim) from a DuitNow transfer receipt
 // with a label-left/value-right table layout. Tesseract's SPARSE_TEXT
 // reading order puts several values *before* their own label - the date
@@ -348,6 +400,14 @@ describe('parseSlip', () => {
     expect(parsed.time.value).toBe('06:24:00 PM');
     expect(parsed.amount.value).toBe(4000);
     expect(parsed.referenceNo.value).toBe('20260917RPPEMYKL010HRB80620236');
+  });
+
+  it('matches "Reference No" even with its leading letter dropped, not "Service Reference No" instead', () => {
+    const { parsed } = parseSlip(DUITNOW_DROPPED_LEADING_CHAR_SLIP);
+
+    expect(parsed.referenceNo.value).toBe('26090703838771');
+    expect(parsed.date.value).toBe('07-09-2026');
+    expect(parsed.amount.value).toBe(10678);
   });
 
   it('parses a hyphenated "07-Sep-2026" date even when it sits before its own label', () => {

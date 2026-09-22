@@ -1,7 +1,13 @@
 import type { ParsedField } from '../types';
 
+// "reference"/"rujukan"'s leading letter is optional: OCR occasionally drops
+// the first character of a text run entirely (confirmed on a real DuitNow
+// receipt - "Reference No" read as "eference No", which still has to match
+// so the parser doesn't skip past the real field and grab a different one,
+// like "Service Reference No", instead). Same idea as this codebase's
+// existing handling of AEON's logo dropping its stylized "A".
 const REF_KEYWORD =
-  /\b(reference\s*no\.?|ref\.?\s*no\.?|reference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|rujukan)\s*[:\-]?\s*/i;
+  /\b(r?eference\s*no\.?|ref\.?\s*no\.?|r?eference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|r?ujukan)\s*[:\-]?\s*/i;
 
 // Reference numbers are alphanumeric, often with dashes/slashes, long enough
 // that we won't mistake a short quantity for one, and - importantly -
