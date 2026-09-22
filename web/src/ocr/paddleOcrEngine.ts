@@ -12,6 +12,28 @@ interface PaddleOcrResponse {
   lines: PaddleOcrLine[];
 }
 
+// Unlike Tesseract (in-browser, no memory ceiling), the PaddleOCR server
+// runs on a memory-constrained host (see ocr-server/README.md) that can
+// OOM-crash on a full-resolution photo. Downscale a copy just for this
+// upload rather than shrinking the canvas every engine shares - Tesseract
+// should always get full resolution.
+const MAX_UPLOAD_DIMENSION = 2000;
+
+function downscaleForUpload(image: HTMLCanvasElement): HTMLCanvasElement {
+  const longEdge = Math.max(image.width, image.height);
+  if (longEdge <= MAX_UPLOAD_DIMENSION) return image;
+
+  const scale = MAX_UPLOAD_DIMENSION / longEdge;
+  const scaled = document.createElement('canvas');
+  scaled.width = Math.round(image.width * scale);
+  scaled.height = Math.round(image.height * scale);
+  const ctx = scaled.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, scaled.width, scaled.height);
+  return scaled;
+}
+
 /**
  * Talks to the optional local PaddleOCR server (see ocr-server/README.md at
  * the repo root). PaddleOCR is Python-only, so unlike Tesseract.js it can't
@@ -29,7 +51,8 @@ export function createPaddleOcrEngine(serverUrl: string, apiKey = ''): OcrEngine
     requiresNetwork: false,
 
     async extractText(image: HTMLCanvasElement): Promise<OcrResult> {
-      const blob = await new Promise<Blob | null>((resolve) => image.toBlob(resolve, 'image/jpeg', 0.92));
+      const upload = downscaleForUpload(image);
+      const blob = await new Promise<Blob | null>((resolve) => upload.toBlob(resolve, 'image/jpeg', 0.92));
       if (!blob) {
         throw new Error('Could not encode the image to send to PaddleOCR.');
       }

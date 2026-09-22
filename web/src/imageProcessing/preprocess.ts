@@ -183,13 +183,15 @@ export interface PreprocessResult {
 // Tesseract more pixels per character to work with.
 const MIN_OCR_WIDTH = 1600;
 
-// Modern phone cameras shoot well above what any of these OCR engines need
-// (2000px on the long edge is already generous for a single slip's worth of
-// text) - full resolution (e.g. 3024x4032) sent as-is to the PaddleOCR
-// server pushed its memory usage past Render free tier's 512MB limit during
-// inference, OOM-killing the process mid-request. Capping here benefits
-// every engine (smaller upload, faster processing), not just PaddleOCR.
-const MAX_OCR_DIMENSION = 2000;
+// No maximum here deliberately: this canvas is what Tesseract (the primary,
+// in-browser engine, no memory ceiling) actually reads, and downscaling a
+// high-resolution phone photo throws away exactly the pixel detail small
+// text needs - a previous version capped this at 2000px to protect the
+// PaddleOCR fallback server's 512MB memory limit, but that traded away
+// Tesseract's accuracy for the sake of an engine that, in practice, still
+// OOMs on most real photos regardless of this cap. Any downscaling needed
+// specifically for the PaddleOCR server happens in paddleOcrEngine.ts on
+// its own copy of the canvas, not here.
 
 export async function preprocessImage(file: File): Promise<PreprocessResult> {
   const sourceCanvas = await loadFileToCanvas(file);
@@ -213,17 +215,6 @@ export async function preprocessImage(file: File): Promise<PreprocessResult> {
     upscaledCtx.drawImage(cropped, 0, 0, upscaled.width, upscaled.height);
     cropped = upscaled;
     croppedCtx = upscaledCtx;
-  } else if (Math.max(cropped.width, cropped.height) > MAX_OCR_DIMENSION) {
-    const scale = MAX_OCR_DIMENSION / Math.max(cropped.width, cropped.height);
-    const downscaled = document.createElement('canvas');
-    downscaled.width = Math.round(cropped.width * scale);
-    downscaled.height = Math.round(cropped.height * scale);
-    const downscaledCtx = downscaled.getContext('2d')!;
-    downscaledCtx.imageSmoothingEnabled = true;
-    downscaledCtx.imageSmoothingQuality = 'high';
-    downscaledCtx.drawImage(cropped, 0, 0, downscaled.width, downscaled.height);
-    cropped = downscaled;
-    croppedCtx = downscaledCtx;
   }
 
   const enhancedData = applyGrayscaleAndContrast(croppedCtx.getImageData(0, 0, cropped.width, cropped.height));
