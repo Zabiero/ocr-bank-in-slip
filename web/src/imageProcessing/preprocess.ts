@@ -217,44 +217,114 @@ function detectSkewAngle(canvas: HTMLCanvasElement): number {
   return bestAngle;
 }
 
-/** Simple content bounding box via row/column luminance projection, with padding. */
+/**
+ * Finds the largest coherent block of dense dark content, instead of a
+ * single bounding box of "any dark pixel anywhere in the frame". A photo
+ * with other papers, handwriting or a notebook also in shot has dark pixels
+ * scattered across most of the image - a plain bounding box crop includes
+ * all of it. A receipt's own text is a large, densely-packed mass; a scrap
+ * of handwriting or a ruled notebook line is comparatively sparse and/or
+ * spatially separate, so picking the largest connected mass usually isolates
+ * the actual document instead of the clutter around it.
+ *
+ * Works on a coarse grid: each cell's dark-pixel density decides whether it
+ * counts as "content", then a flood fill finds the largest 4-connected group
+ * of content cells. Not a substitute for real perspective/contour detection
+ * (see the module doc comment) - handwriting or clutter directly touching
+ * the document's own edge still merges into the same blob - but a real
+ * improvement over a global bounding box for anything not touching it.
+ */
 function autoCropBounds(imageData: ImageData): { x: number; y: number; width: number; height: number } {
   const { data, width, height } = imageData;
-  const rowHasContent = new Array(height).fill(false);
-  const colHasContent = new Array(width).fill(false);
-
-  // Background is assumed light; anything sufficiently dark counts as content.
   const DARK_THRESHOLD = 235;
 
+  // ~70 cells along the longer edge: coarse enough to bridge gaps between
+  // individual characters/lines within one block, fine enough to keep
+  // spatially separate clutter in its own blob.
+  const cellSize = Math.max(4, Math.round(Math.max(width, height) / 70));
+  const cols = Math.ceil(width / cellSize);
+  const rows = Math.ceil(height / cellSize);
+
+  const darkCount = new Int32Array(cols * rows);
+  const totalCount = new Int32Array(cols * rows);
+
   for (let y = 0; y < height; y++) {
+    const row = Math.min(rows - 1, Math.floor(y / cellSize));
     for (let x = 0; x < width; x++) {
+      const col = Math.min(cols - 1, Math.floor(x / cellSize));
+      const idx = row * cols + col;
       const i = (y * width + x) * 4;
       const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-      if (luminance < DARK_THRESHOLD) {
-        rowHasContent[y] = true;
-        colHasContent[x] = true;
-      }
+      totalCount[idx]++;
+      if (luminance < DARK_THRESHOLD) darkCount[idx]++;
     }
   }
 
-  const firstRow = rowHasContent.indexOf(true);
-  const lastRow = rowHasContent.lastIndexOf(true);
-  const firstCol = colHasContent.indexOf(true);
-  const lastCol = colHasContent.lastIndexOf(true);
+  // A cell counts as "content" once a meaningful fraction of it is ink -
+  // dense text clears this easily; a single thin ruled line or a sparse
+  // handwriting stroke passing through a cell usually doesn't.
+  const DENSITY_THRESHOLD = 0.06;
+  const isContent = new Uint8Array(cols * rows);
+  for (let c = 0; c < cols * rows; c++) {
+    isContent[c] = totalCount[c] > 0 && darkCount[c] / totalCount[c] > DENSITY_THRESHOLD ? 1 : 0;
+  }
 
-  if (firstRow === -1 || firstCol === -1) {
+  const visited = new Uint8Array(cols * rows);
+  let best: { minCol: number; maxCol: number; minRow: number; maxRow: number; cellCount: number } | null = null;
+
+  for (let start = 0; start < cols * rows; start++) {
+    if (!isContent[start] || visited[start]) continue;
+
+    const stack = [start];
+    visited[start] = 1;
+    let cellCount = 0;
+    let minCol = cols;
+    let maxCol = -1;
+    let minRow = rows;
+    let maxRow = -1;
+
+    while (stack.length) {
+      const idx = stack.pop()!;
+      const row = Math.floor(idx / cols);
+      const col = idx % cols;
+      cellCount++;
+      if (col < minCol) minCol = col;
+      if (col > maxCol) maxCol = col;
+      if (row < minRow) minRow = row;
+      if (row > maxRow) maxRow = row;
+
+      const neighbors = [
+        row > 0 ? idx - cols : -1,
+        row < rows - 1 ? idx + cols : -1,
+        col > 0 ? idx - 1 : -1,
+        col < cols - 1 ? idx + 1 : -1,
+      ];
+      for (const n of neighbors) {
+        if (n >= 0 && isContent[n] && !visited[n]) {
+          visited[n] = 1;
+          stack.push(n);
+        }
+      }
+    }
+
+    if (!best || cellCount > best.cellCount) {
+      best = { minCol, maxCol, minRow, maxRow, cellCount };
+    }
+  }
+
+  if (!best) {
     return { x: 0, y: 0, width, height };
   }
 
-  const padX = Math.round(width * 0.02);
-  const padY = Math.round(height * 0.02);
+  const padCols = Math.max(1, Math.round((best.maxCol - best.minCol + 1) * 0.04));
+  const padRows = Math.max(1, Math.round((best.maxRow - best.minRow + 1) * 0.04));
 
-  const x = Math.max(0, firstCol - padX);
-  const y = Math.max(0, firstRow - padY);
-  const cropWidth = Math.min(width, lastCol + padX) - x;
-  const cropHeight = Math.min(height, lastRow + padY) - y;
+  const x = Math.max(0, (best.minCol - padCols) * cellSize);
+  const y = Math.max(0, (best.minRow - padRows) * cellSize);
+  const right = Math.min(width, (best.maxCol + 1 + padCols) * cellSize);
+  const bottom = Math.min(height, (best.maxRow + 1 + padRows) * cellSize);
 
-  return { x, y, width: cropWidth, height: cropHeight };
+  return { x, y, width: right - x, height: bottom - y };
 }
 
 function applyGrayscaleAndContrast(imageData: ImageData): ImageData {
@@ -292,11 +362,15 @@ export interface PreprocessResult {
  * Applies deskew, auto-crop, grayscale conversion and contrast stretching.
  * This is a lightweight Canvas-based pipeline, not a full computer-vision
  * pipeline: EXIF-based auto-rotation is exact and deskew (detectSkewAngle)
- * straightens whatever rotation the whole frame has, but there is no true
- * perspective correction - a document photographed at a steep angle (not
- * just rotated flat-on) or surrounded by heavy background clutter (other
- * papers, handwriting) won't be perfectly isolated. See README.md for how
- * to swap in OpenCV.js for a more advanced pipeline (contour detection +
+ * straightens whatever rotation the whole frame has; auto-crop
+ * (autoCropBounds) isolates the largest dense content block rather than
+ * just bounding-boxing every dark pixel, so a document photographed
+ * alongside other papers or handwriting is usually cropped to itself
+ * instead of the whole cluttered frame. Still no true perspective
+ * correction, and clutter directly touching the document's own edge still
+ * gets pulled in with it - a document photographed at a steep angle (not
+ * just rotated flat-on) also isn't corrected. See README.md for how to
+ * swap in OpenCV.js for a more advanced pipeline (contour detection +
  * perspective warp).
  */
 // Small/faint text (e.g. secondary UI text on a downscaled phone
