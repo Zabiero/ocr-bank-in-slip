@@ -61,11 +61,19 @@ def _require_api_key(x_api_key: Optional[str]) -> None:
 # orientation is left enabled - it operates per detected text region and
 # testing found disabling it broke recognition of small/faint text, which
 # is the whole reason to use PaddleOCR here.
+#
+# text_detection/recognition_model_name pinned to the "small" PP-OCRv6
+# variants instead of the ("medium") default: on Render's free tier
+# (512MB RAM hard limit), the default models pushed usage to ~487MB at
+# idle, and any real request on top of that triggered an OOM kill ->
+# crash-restart loop. Small models are ~30MB combined vs. ~134MB for
+# medium, comfortably fitting under 512MB with headroom for inference.
 _ocr = PaddleOCR(
-    lang="en",
     enable_mkldnn=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
+    text_detection_model_name="PP-OCRv6_small_det",
+    text_recognition_model_name="PP-OCRv6_small_rec",
 )
 
 
