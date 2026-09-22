@@ -31,6 +31,21 @@ export async function extractTextWithFallback(
   settings: AppSettings,
 ): Promise<{ result: OcrResult; engineId: string }> {
   const primary = getOcrEngine(settings);
+
+  // A browser that saved settings before PaddleOCR became fallback-only may
+  // still have ocrEngine: 'paddleocr' stored as the primary choice. Treat
+  // that the same as an automatic fallback attempt - Tesseract always runs
+  // if it fails, rather than surfacing the fragile free-tier server's error.
+  if (primary.id === 'paddleocr') {
+    try {
+      const result = await primary.extractText(canvas);
+      return { result, engineId: primary.id };
+    } catch {
+      const result = await tesseractEngine.extractText(canvas);
+      return { result, engineId: tesseractEngine.id };
+    }
+  }
+
   const primaryResult = await primary.extractText(canvas);
 
   const canFallBackToPaddleOcr =
