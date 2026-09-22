@@ -1,5 +1,5 @@
 import { preprocessImage } from './imageProcessing/preprocess';
-import { extractTextWithFallback } from './ocr';
+import { getOcrEngine } from './ocr';
 import { parseSlip, computeStatus, emptyParsedSlip } from './parsing/parseSlip';
 import type { AppSettings, ProcessingStage, SlipRecord } from './types';
 
@@ -22,7 +22,8 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
     const { canvas, imageDataUrl, thumbnailDataUrl } = await preprocessImage(file);
 
     onStage?.('ocr');
-    const { result: ocrResult, engineId } = await extractTextWithFallback(canvas, settings);
+    const engine = getOcrEngine(settings);
+    const ocrResult = await engine.extractText(canvas);
 
     onStage?.('parsing');
     const { parsed, maskedText } = parseSlip(ocrResult.text, { dateAmbiguityMode: settings.dateAmbiguityMode });
@@ -37,7 +38,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
         thumbnailDataUrl,
         ocrText: '',
         ocrConfidence: ocrResult.confidence,
-        ocrEngine: engineId,
+        ocrEngine: engine.id,
         parsed: emptyParsedSlip(),
         status: 'error',
         errorMessage: 'No text found — the photo may be too blurry or dark. Try retaking it.',
@@ -52,7 +53,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
       thumbnailDataUrl,
       ocrText: maskedText,
       ocrConfidence: ocrResult.confidence,
-      ocrEngine: engineId,
+      ocrEngine: engine.id,
       parsed,
       status,
     };
@@ -91,14 +92,15 @@ export async function rescanSlip(record: SlipRecord, settings: AppSettings): Pro
     canvas.height = img.naturalHeight;
     canvas.getContext('2d')!.drawImage(img, 0, 0);
 
-    const { result: ocrResult, engineId } = await extractTextWithFallback(canvas, settings);
+    const engine = getOcrEngine(settings);
+    const ocrResult = await engine.extractText(canvas);
     const { parsed, maskedText } = parseSlip(ocrResult.text, { dateAmbiguityMode: settings.dateAmbiguityMode });
 
     return {
       ...record,
       ocrText: maskedText,
       ocrConfidence: ocrResult.confidence,
-      ocrEngine: engineId,
+      ocrEngine: engine.id,
       parsed,
       status: computeStatus(parsed),
       errorMessage: undefined,

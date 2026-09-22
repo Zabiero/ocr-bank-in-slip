@@ -305,15 +305,9 @@ export interface PreprocessResult {
 // Tesseract more pixels per character to work with.
 const MIN_OCR_WIDTH = 1600;
 
-// No maximum here deliberately: this canvas is what Tesseract (the primary,
-// in-browser engine, no memory ceiling) actually reads, and downscaling a
-// high-resolution phone photo throws away exactly the pixel detail small
-// text needs - a previous version capped this at 2000px to protect the
-// PaddleOCR fallback server's 512MB memory limit, but that traded away
-// Tesseract's accuracy for the sake of an engine that, in practice, still
-// OOMs on most real photos regardless of this cap. Any downscaling needed
-// specifically for the PaddleOCR server happens in paddleOcrEngine.ts on
-// its own copy of the canvas, not here.
+// No maximum width here: Tesseract runs in-browser with no memory ceiling,
+// and downscaling a high-resolution phone photo throws away exactly the
+// pixel detail small text needs.
 
 export async function preprocessImage(file: File): Promise<PreprocessResult> {
   const loadedCanvas = await loadFileToCanvas(file);

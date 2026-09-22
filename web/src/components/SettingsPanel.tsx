@@ -40,14 +40,7 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
             >
               <option value="tesseract">Tesseract.js — on-device, private, works offline (recommended)</option>
               <option value="cloud-vision">Google Cloud Vision — cloud, more accurate on photos</option>
-              <option value="paddleocr">PaddleOCR only — force every scan through the PaddleOCR server</option>
             </select>
-            {settings.ocrEngine === 'tesseract' && (
-              <p className="mt-1 text-xs text-slate-500">
-                When a scan comes back with low confidence, PaddleOCR (if configured below) is automatically tried as
-                a second opinion — no need to switch engines manually.
-              </p>
-            )}
           </div>
 
           {settings.ocrEngine === 'cloud-vision' && (
@@ -62,36 +55,6 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
                 value={settings.cloudVisionApiKey}
                 onChange={(e) => onChange({ ...settings, cloudVisionApiKey: e.target.value })}
                 placeholder="AIza…"
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              />
-            </div>
-          )}
-
-          {settings.ocrEngine !== 'cloud-vision' && (
-            <div className="rounded border border-blue-300 bg-blue-50 p-3 text-sm">
-              <p className="mb-2 text-blue-900">
-                {settings.ocrEngine === 'paddleocr'
-                  ? 'PaddleOCR needs a small server running — see '
-                  : 'Optional: configure a PaddleOCR server as an automatic fallback for low-confidence scans — see '}
-                <code className="rounded bg-blue-100 px-1">ocr-server/README.md</code> in the project for setup. Run
-                it on your own machine (leave the API key blank) for a purely local, offline setup, or deploy it
-                somewhere internet-reachable so a phone away from your local network can use it too — set an API key
-                below to match its <code className="rounded bg-blue-100 px-1">PADDLEOCR_API_KEY</code> in that case.
-              </p>
-              <label className="block text-xs font-medium text-slate-700">PaddleOCR server URL</label>
-              <input
-                type="text"
-                value={settings.paddleOcrServerUrl}
-                onChange={(e) => onChange({ ...settings, paddleOcrServerUrl: e.target.value })}
-                placeholder="http://localhost:8000"
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-              />
-              <label className="mt-2 block text-xs font-medium text-slate-700">API key (only if deployed publicly)</label>
-              <input
-                type="password"
-                value={settings.paddleOcrApiKey}
-                onChange={(e) => onChange({ ...settings, paddleOcrApiKey: e.target.value })}
-                placeholder="Leave blank for local-only use"
                 className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>
