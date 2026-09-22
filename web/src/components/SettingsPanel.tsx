@@ -64,9 +64,11 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
           {settings.ocrEngine === 'paddleocr' && (
             <div className="rounded border border-blue-300 bg-blue-50 p-3 text-sm">
               <p className="mb-2 text-blue-900">
-                PaddleOCR needs a small local server running alongside this app — see{' '}
-                <code className="rounded bg-blue-100 px-1">ocr-server/README.md</code> in the project for setup. It
-                runs entirely on your own machine; slip images never go over the internet.
+                PaddleOCR needs a small server running — see{' '}
+                <code className="rounded bg-blue-100 px-1">ocr-server/README.md</code> in the project for setup. Run
+                it on your own machine (leave the API key blank) for a purely local, offline setup, or deploy it
+                somewhere internet-reachable so a phone away from your local network can use it too — set an API key
+                below to match its <code className="rounded bg-blue-100 px-1">PADDLEOCR_API_KEY</code> in that case.
               </p>
               <label className="block text-xs font-medium text-slate-700">PaddleOCR server URL</label>
               <input
@@ -74,6 +76,14 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
                 value={settings.paddleOcrServerUrl}
                 onChange={(e) => onChange({ ...settings, paddleOcrServerUrl: e.target.value })}
                 placeholder="http://localhost:8000"
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              />
+              <label className="mt-2 block text-xs font-medium text-slate-700">API key (only if deployed publicly)</label>
+              <input
+                type="password"
+                value={settings.paddleOcrApiKey}
+                onChange={(e) => onChange({ ...settings, paddleOcrApiKey: e.target.value })}
+                placeholder="Leave blank for local-only use"
                 className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>

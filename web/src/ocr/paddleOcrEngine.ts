@@ -20,7 +20,7 @@ interface PaddleOcrResponse {
  * Nothing leaves the user's computer; it's a second local process instead
  * of a cloud dependency.
  */
-export function createPaddleOcrEngine(serverUrl: string): OcrEngine {
+export function createPaddleOcrEngine(serverUrl: string, apiKey = ''): OcrEngine {
   const base = serverUrl.replace(/\/+$/, '');
 
   return {
@@ -39,13 +39,20 @@ export function createPaddleOcrEngine(serverUrl: string): OcrEngine {
 
       let res: Response;
       try {
-        res = await fetch(`${base}/ocr`, { method: 'POST', body: formData });
+        res = await fetch(`${base}/ocr`, {
+          method: 'POST',
+          headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+          body: formData,
+        });
       } catch {
         throw new Error(
           `Could not reach the PaddleOCR server at ${base}. Make sure it's running - see ocr-server/README.md.`,
         );
       }
 
+      if (res.status === 401) {
+        throw new Error('PaddleOCR server rejected the request - check the API key in Settings.');
+      }
       if (!res.ok) {
         throw new Error(`PaddleOCR server returned an error (HTTP ${res.status}).`);
       }

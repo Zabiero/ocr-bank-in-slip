@@ -1,16 +1,19 @@
-# PaddleOCR server (optional, local-only)
+# PaddleOCR server (optional)
 
-An optional local OCR backend for [`web/`](../web/README.md), used when you
-select **PaddleOCR** as the OCR engine in the app's Settings.
+An optional OCR backend for [`web/`](../web/README.md), used when you select
+**PaddleOCR** as the OCR engine in the app's Settings. Runs locally by
+default; can also be deployed as a real internet-reachable API (see
+[Deploying publicly](#deploying-publicly) below) if you want to use it from
+a phone that isn't on the same network as the machine running it.
 
 Why this exists: PaddleOCR's text detector catches small, faint, or
 secondary text (e.g. a light-gray timestamp on a mobile "share receipt"
 screenshot) that the bundled Tesseract.js engine sometimes misses entirely.
 The trade-off is that PaddleOCR is Python-only — it can't run inside the
-browser the way Tesseract.js does — so it needs this small local server
-instead. Everything still stays on your machine: the web app posts the slip
-image to `http://localhost:8000` on the same computer, and nothing is sent
-anywhere else.
+browser the way Tesseract.js does — so it needs this small server instead.
+Run it locally and everything stays on your machine: the web app posts the
+slip image to `http://localhost:8000` on the same computer, and nothing is
+sent anywhere else.
 
 ## Setup
 
@@ -66,7 +69,9 @@ default).
 
 ## API
 
-`POST /ocr` — multipart form field `file` (an image). Returns:
+`POST /ocr` — multipart form field `file` (an image), header `X-API-Key`
+(only required if `PADDLEOCR_API_KEY` is set — see
+[Deploying publicly](#deploying-publicly)). Returns:
 
 ```json
 {
@@ -79,4 +84,30 @@ default).
 ```
 
 `GET /health` — returns `{"status": "ok"}` once the server (and PaddleOCR
-model) has finished loading.
+model) has finished loading. Not protected by the API key, since hosts
+typically need an open health check to know the server is alive.
+
+## Deploying publicly
+
+Running this on `localhost` only works when your phone is on the same WiFi
+network as the machine running the server. To use PaddleOCR from anywhere,
+deploy it somewhere internet-reachable instead:
+
+1. **Set an API key first.** With no `PADDLEOCR_API_KEY` set, `/ocr` accepts
+   any request — fine on localhost, not fine on the public internet, since
+   anyone who finds the URL could use your server's compute for free.
+   Generate a random string and set it as an environment variable on
+   whatever host you use (e.g. `PADDLEOCR_API_KEY=<a long random string>`).
+2. **Pick a host.** A [`Dockerfile`](Dockerfile) is included, so any
+   container-based host works:
+   - A small always-on VPS (DigitalOcean, Hetzner, etc., roughly
+     $4-6/month) is the most predictable option — no cold starts, dedicated
+     RAM for PaddleOCR's models. Build and run the image, or install
+     dependencies directly and run `uvicorn` behind a process manager.
+   - A free-tier PaaS (Render, Railway, Fly.io) costs nothing but typically
+     sleeps the server when idle — expect a 30-60+ second delay on the
+     first scan after a quiet period, and check the free tier's RAM limit
+     is enough for PaddleOCR's models (at least ~1GB recommended).
+3. **Point the app at it.** In the app's Settings, set **PaddleOCR server
+   URL** to the deployed URL (e.g. `https://your-app.example.com`) and
+   **API key** to the same value as `PADDLEOCR_API_KEY`.

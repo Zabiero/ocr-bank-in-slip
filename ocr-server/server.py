@@ -1,17 +1,30 @@
-"""Local PaddleOCR server for the Bank-In Slip Scanner web app (see ../web).
+"""PaddleOCR server for the Bank-In Slip Scanner web app (see ../web).
 
 Run this alongside the web app to use PaddleOCR as an OCR engine option
-instead of the bundled Tesseract.js or Google Cloud Vision. Everything stays
-on this machine: the web app posts an image to this server over localhost,
-and no image data goes anywhere else.
+instead of the bundled Tesseract.js or Google Cloud Vision. By default this
+is meant to run on your own machine, with the web app posting images to it
+over localhost - no image data goes anywhere else. It can also be deployed
+somewhere internet-reachable (see ocr-server/README.md) so a phone away
+from your local network can use it too; set PADDLEOCR_API_KEY in that case
+so it isn't left open to anyone who finds the URL.
 """
 
 import io
+import os
+from typing import Optional
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
+
+# Set this env var before running to require an API key on every request -
+# needed if you deploy this server somewhere reachable from the internet
+# (e.g. to use it from your phone away from your local network) instead of
+# running it purely on localhost. Leave unset for local-only use: with no
+# key configured, the server accepts requests unauthenticated, same as
+# before this existed.
+_REQUIRED_API_KEY = os.environ.get("PADDLEOCR_API_KEY")
 
 # enable_mkldnn=False works around a NotImplementedError
 # ("ConvertPirAttribute2RuntimeAttribute ... not support") that some Windows
@@ -22,15 +35,21 @@ from paddleocr import PaddleOCR
 
 app = FastAPI(title="Bank-In Slip Scanner - PaddleOCR server")
 
-# This server is meant for local-only use (the web app running on the same
-# machine) and is never exposed to the internet, so a permissive CORS policy
-# is fine here - do not deploy this server publicly as-is.
+# A permissive CORS policy is fine here since the actual protection against
+# unauthorized use is the API key check below (when PADDLEOCR_API_KEY is
+# set), not CORS.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["POST"],
     allow_headers=["*"],
 )
+
+
+def _require_api_key(x_api_key: Optional[str]) -> None:
+    if _REQUIRED_API_KEY and x_api_key != _REQUIRED_API_KEY:
+        raise HTTPException(401, "Missing or invalid X-API-Key header")
+
 
 # Loaded once at startup - PaddleOCR initialization is slow (and downloads
 # model files on first run); individual requests are fast once it's ready.
@@ -51,7 +70,9 @@ _ocr = PaddleOCR(
 
 
 @app.post("/ocr")
-async def ocr(file: UploadFile = File(...)):
+async def ocr(file: UploadFile = File(...), x_api_key: Optional[str] = Header(default=None)):
+    _require_api_key(x_api_key)
+
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Expected an image file")
 

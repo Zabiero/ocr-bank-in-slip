@@ -61,6 +61,8 @@ export interface AppSettings {
   cloudVisionApiKey: string;
   /** Base URL of the optional local PaddleOCR server (see ocr-server/README.md). */
   paddleOcrServerUrl: string;
+  /** Sent as X-API-Key to the PaddleOCR server - only needed if it's deployed somewhere internet-reachable with PADDLEOCR_API_KEY set, rather than run purely on localhost. */
+  paddleOcrApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ocrEngine: 'tesseract',
   cloudVisionApiKey: '',
   paddleOcrServerUrl: 'http://localhost:8000',
+  paddleOcrApiKey: '',
 };
 
 export interface Bank {

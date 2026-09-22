@@ -11,7 +11,7 @@ export function getOcrEngine(settings: AppSettings): OcrEngine {
     return createCloudVisionEngine(settings.cloudVisionApiKey);
   }
   if (settings.ocrEngine === 'paddleocr') {
-    return createPaddleOcrEngine(settings.paddleOcrServerUrl);
+    return createPaddleOcrEngine(settings.paddleOcrServerUrl, settings.paddleOcrApiKey);
   }
   return tesseractEngine;
 }
