@@ -616,6 +616,9 @@ describe('parseSlip', () => {
   it('parses an unlabeled lowercase-prefixed amount on a second real slip shape', () => {
     const { parsed } = parseSlip(SHOPEE_INSTALMENT_SLIP);
 
+    // SPayLater is a ShopeePay product - its receipts never print
+    // "Shopee"/"ShopeePay" anywhere, only "SPayLater".
+    expect(parsed.bank.value).toBe('ShopeePay');
     expect(parsed.amount.value).toBe(3499.83);
     expect(parsed.date.value).toBe('27-07-2026');
   });

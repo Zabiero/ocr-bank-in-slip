@@ -128,7 +128,10 @@ export const BANKS: Bank[] = [
   },
   {
     name: 'ShopeePay',
-    aliases: ['shopeepay', 'shopee pay'],
+    // SPayLater (Shopee's "buy now, pay later" instalment product) receipts
+    // never actually print "Shopee"/"ShopeePay" anywhere - "SPayLater" is
+    // the only brand text OCR ever sees, so it needs its own alias here.
+    aliases: ['shopeepay', 'shopee pay', 'spaylater'],
   },
   {
     name: 'GrabPay',
