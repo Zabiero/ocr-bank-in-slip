@@ -419,6 +419,68 @@ SMS Fee
 07-Sep-2026
 Payment Date`;
 
+// Real Tesseract output (captured verbatim via "View text") from a Public
+// Bank FPX payment receipt. The issuing bank's own branding ("PUBLIC BANK")
+// only appears in the footer logo, at the very end of the page, while
+// "Seller Description: ALLIANCE BANK MALAYSIA BERHAD" (the FPX merchant's
+// settlement bank, not the payer's own bank) sits mid-page, well before it -
+// naive earliest-match-wins picked Alliance Bank.
+const PUBLIC_BANK_FPX_SLIP = `RM 4,376.66
+
+Transfer Method
+
+FPX
+
+Reference No.
+
+779830
+
+Date & Time
+
+28/08/2026 12:09:24 PM
+
+From Account
+
+***#**3623 (Savings)
+
+Transaction ID
+
+2608281208140046
+
+Serial Number
+
+Seller ID
+
+SE00087422
+
+Seller Description
+
+ALLIANCE BANK
+
+MALAYSIA BERHAD
+
+Seller Order Number
+
+42367 9ii7e90450VCCFP
+
+X145006960320045071
+
+Transaction Status
+
+Successful
+
+Reason
+
+BANK FOR THE PEOPLE
+
+PUBLIC BANK
+
+BUBLIC ISLAMIC BANK.
+
+Public Bank Berhad 196501000672 (6463-H)
+
+Public Islamic Bank Berhad 197301001433 (14328-V)`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -626,5 +688,12 @@ describe('parseSlip', () => {
   it("doesn't confuse the Boost e-wallet with Boost Bank (the digital bank)", () => {
     const { parsed } = parseSlip('Boost Bank\nTransfer Receipt\nDate: 12/09/2026\nAmount: RM30.00');
     expect(parsed.bank.value).toBe('Boost Bank');
+  });
+
+  it('picks the issuing bank over the counterparty bank named under "Seller Description" on an FPX receipt', () => {
+    const { parsed } = parseSlip(PUBLIC_BANK_FPX_SLIP);
+    expect(parsed.bank.value).toBe('Public Bank');
+    expect(parsed.amount.value).toBe(4376.66);
+    expect(parsed.referenceNo.value).toBe('779830');
   });
 });

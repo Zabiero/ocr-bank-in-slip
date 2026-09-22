@@ -153,6 +153,49 @@ export const BANKS: Bank[] = [
 export const UNKNOWN_BANK = 'Unknown';
 
 /**
+ * Labels that introduce the *other* party's bank, not the receipt's own
+ * issuer - e.g. an FPX payment's "Seller Description" (the merchant's
+ * settlement bank) or a transfer's "Beneficiary"/"Transfer to" section (the
+ * recipient's bank). A bank name found right after one of these must not
+ * outrank the issuing bank's own name/logo just because it happens to sit
+ * earlier in the page than a footer logo (confirmed on a real Public Bank
+ * FPX receipt: "Seller Description: ALLIANCE BANK MALAYSIA BERHAD" appears
+ * mid-page, while "PUBLIC BANK" only appears in the footer branding at the
+ * very end - naive earliest-match-wins picked Alliance Bank).
+ */
+const COUNTERPARTY_LABEL = /\b(seller|beneficiary|recipient|receiver|payee|transfer to|kepada|penerima)\b/i;
+const COUNTERPARTY_LOOKBACK_LINES = 4;
+
+interface BankMatch {
+  name: string;
+  alias: string;
+  index: number;
+}
+
+function isNearCounterpartyLabel(lines: string[], lineSpans: Array<{ start: number; end: number }>, matchIndex: number): boolean {
+  const lineIdx = lineSpans.findIndex(({ start, end }) => matchIndex >= start && matchIndex < end);
+  if (lineIdx === -1) return false;
+  if (COUNTERPARTY_LABEL.test(lines[lineIdx])) return true;
+
+  for (let j = lineIdx - 1, seen = 0; j >= 0 && seen < COUNTERPARTY_LOOKBACK_LINES; j--) {
+    if (lines[j].trim() === '') continue;
+    seen++;
+    if (COUNTERPARTY_LABEL.test(lines[j])) return true;
+  }
+  return false;
+}
+
+/** Earliest match wins; ties broken by the longer (more specific) alias. */
+function pickBest(matches: BankMatch[]): BankMatch | null {
+  let best: BankMatch | null = null;
+  for (const m of matches) {
+    const isBetter = !best || m.index < best.index || (m.index === best.index && m.alias.length > best.alias.length);
+    if (isBetter) best = m;
+  }
+  return best;
+}
+
+/**
  * Detects a bank name from free-form OCR text by matching against the
  * configured alias list (case-insensitive substring match). Returns a
  * confidence score: 95 for a match, 0 (with UNKNOWN_BANK) when nothing
@@ -164,25 +207,42 @@ export const UNKNOWN_BANK = 'Unknown';
  * top of a receipt, while a different bank's name can legitimately appear
  * further down (e.g. the recipient's bank in a "Transfer to ... RHB Bank
  * Berhad" section of a transfer receipt) - that later match must not win.
+ * Matches found right after a counterparty label (see COUNTERPARTY_LABEL)
+ * are only used as a last resort, since they name the *other* party's bank
+ * regardless of where on the page they happen to sit.
  */
 export function detectBank(
   text: string,
   banks: Bank[] = BANKS,
 ): { name: string; confidence: number; raw?: string } {
   const lower = text.toLowerCase();
-  let best: { name: string; alias: string; index: number } | null = null;
+  const lines = text.split(/\r?\n/);
+  const lineSpans: Array<{ start: number; end: number }> = [];
+  {
+    let cursor = 0;
+    for (const line of lines) {
+      lineSpans.push({ start: cursor, end: cursor + line.length });
+      cursor += line.length + 1;
+    }
+  }
+
+  const ownMatches: BankMatch[] = [];
+  const counterpartyMatches: BankMatch[] = [];
 
   for (const bank of banks) {
     for (const alias of bank.aliases) {
       const index = lower.indexOf(alias.toLowerCase());
       if (index === -1) continue;
-      const isBetter = !best || index < best.index || (index === best.index && alias.length > best.alias.length);
-      if (isBetter) {
-        best = { name: bank.name, alias, index };
+      const match: BankMatch = { name: bank.name, alias, index };
+      if (isNearCounterpartyLabel(lines, lineSpans, index)) {
+        counterpartyMatches.push(match);
+      } else {
+        ownMatches.push(match);
       }
     }
   }
 
+  const best = pickBest(ownMatches) ?? pickBest(counterpartyMatches);
   if (best) {
     return { name: best.name, confidence: 95, raw: best.alias };
   }
