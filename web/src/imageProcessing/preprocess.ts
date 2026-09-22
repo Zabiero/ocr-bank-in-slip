@@ -218,30 +218,79 @@ function detectSkewAngle(canvas: HTMLCanvasElement): number {
 }
 
 /**
- * Finds the largest coherent block of dense dark content, instead of a
- * single bounding box of "any dark pixel anywhere in the frame". A photo
- * with other papers, handwriting or a notebook also in shot has dark pixels
- * scattered across most of the image - a plain bounding box crop includes
- * all of it. A receipt's own text is a large, densely-packed mass; a scrap
- * of handwriting or a ruled notebook line is comparatively sparse and/or
- * spatially separate, so picking the largest connected mass usually isolates
- * the actual document instead of the clutter around it.
+ * Otsu's method: picks the luminance threshold that best separates a photo
+ * into two classes (foreground/background) by maximizing the variance
+ * between them, instead of assuming a fixed brightness level. A photo taken
+ * in normal indoor lighting can have a mean luminance well under 150 even
+ * though the paper itself reads as "white" to a human eye adjusting for
+ * context - a fixed threshold tuned for a bright, evenly-lit scan (e.g. 235)
+ * can end up classifying almost the entire photo as "dark content",
+ * defeating any crop or contrast step built on top of it.
+ */
+function otsuThreshold(histogram: Uint32Array, totalPixels: number): number {
+  const sumAll = histogram.reduce((sum, count, level) => sum + count * level, 0);
+  let sumBackground = 0;
+  let weightBackground = 0;
+  let bestVariance = 0;
+  let bestThreshold = 0;
+
+  for (let level = 0; level < 256; level++) {
+    weightBackground += histogram[level];
+    if (weightBackground === 0) continue;
+    const weightForeground = totalPixels - weightBackground;
+    if (weightForeground === 0) break;
+
+    sumBackground += level * histogram[level];
+    const meanBackground = sumBackground / weightBackground;
+    const meanForeground = (sumAll - sumBackground) / weightForeground;
+    const betweenVariance = weightBackground * weightForeground * (meanBackground - meanForeground) ** 2;
+
+    if (betweenVariance > bestVariance) {
+      bestVariance = betweenVariance;
+      bestThreshold = level;
+    }
+  }
+
+  return bestThreshold;
+}
+
+/**
+ * Finds the document in a photo instead of bounding-boxing every dark pixel
+ * in the frame, which includes any other papers, handwriting or notebook
+ * also in shot. Works on a coarse grid: each cell's dark-pixel density
+ * (against an Otsu-computed threshold, not a fixed one - see otsuThreshold)
+ * decides whether it counts as "content", then a flood fill groups
+ * 4-connected content cells into blobs.
  *
- * Works on a coarse grid: each cell's dark-pixel density decides whether it
- * counts as "content", then a flood fill finds the largest 4-connected group
- * of content cells. Not a substitute for real perspective/contour detection
- * (see the module doc comment) - handwriting or clutter directly touching
- * the document's own edge still merges into the same blob - but a real
- * improvement over a global bounding box for anything not touching it.
+ * A real document's own text is usually split across multiple blobs at this
+ * granularity - e.g. a receipt's header and body, separated by a plain gap -
+ * while genuine clutter (a stray handwriting scrap, a ruled notebook line)
+ * forms much smaller blobs. So rather than keeping only the single largest
+ * blob, every blob at least SUBSTANTIAL_BLOB_FRACTION the size of the
+ * largest one is merged into the final crop - keeps the document's own
+ * separate sections together while still dropping small, unrelated marks.
+ *
+ * Not a substitute for real perspective/contour detection (see the module
+ * doc comment) - clutter directly touching the document's own edge still
+ * merges into the same blob - but a real improvement over a global bounding
+ * box for anything not touching it.
  */
 function autoCropBounds(imageData: ImageData): { x: number; y: number; width: number; height: number } {
   const { data, width, height } = imageData;
-  const DARK_THRESHOLD = 235;
 
-  // ~70 cells along the longer edge: coarse enough to bridge gaps between
-  // individual characters/lines within one block, fine enough to keep
+  const luminanceHistogram = new Uint32Array(256);
+  const luminance = new Uint8ClampedArray(width * height);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const l = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    luminance[p] = l;
+    luminanceHistogram[l]++;
+  }
+  const darkThreshold = otsuThreshold(luminanceHistogram, width * height);
+
+  // ~60 cells along the longer edge: coarse enough to average out individual
+  // character/line gaps into a stable per-cell density, fine enough to keep
   // spatially separate clutter in its own blob.
-  const cellSize = Math.max(4, Math.round(Math.max(width, height) / 70));
+  const cellSize = Math.max(4, Math.round(Math.max(width, height) / 60));
   const cols = Math.ceil(width / cellSize);
   const rows = Math.ceil(height / cellSize);
 
@@ -253,24 +302,22 @@ function autoCropBounds(imageData: ImageData): { x: number; y: number; width: nu
     for (let x = 0; x < width; x++) {
       const col = Math.min(cols - 1, Math.floor(x / cellSize));
       const idx = row * cols + col;
-      const i = (y * width + x) * 4;
-      const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
       totalCount[idx]++;
-      if (luminance < DARK_THRESHOLD) darkCount[idx]++;
+      if (luminance[y * width + x] < darkThreshold) darkCount[idx]++;
     }
   }
 
   // A cell counts as "content" once a meaningful fraction of it is ink -
   // dense text clears this easily; a single thin ruled line or a sparse
   // handwriting stroke passing through a cell usually doesn't.
-  const DENSITY_THRESHOLD = 0.06;
+  const DENSITY_THRESHOLD = 0.2;
   const isContent = new Uint8Array(cols * rows);
   for (let c = 0; c < cols * rows; c++) {
     isContent[c] = totalCount[c] > 0 && darkCount[c] / totalCount[c] > DENSITY_THRESHOLD ? 1 : 0;
   }
 
   const visited = new Uint8Array(cols * rows);
-  let best: { minCol: number; maxCol: number; minRow: number; maxRow: number; cellCount: number } | null = null;
+  const blobs: { minCol: number; maxCol: number; minRow: number; maxRow: number; cellCount: number }[] = [];
 
   for (let start = 0; start < cols * rows; start++) {
     if (!isContent[start] || visited[start]) continue;
@@ -307,22 +354,29 @@ function autoCropBounds(imageData: ImageData): { x: number; y: number; width: nu
       }
     }
 
-    if (!best || cellCount > best.cellCount) {
-      best = { minCol, maxCol, minRow, maxRow, cellCount };
-    }
+    blobs.push({ minCol, maxCol, minRow, maxRow, cellCount });
   }
 
-  if (!best) {
+  if (blobs.length === 0) {
     return { x: 0, y: 0, width, height };
   }
 
-  const padCols = Math.max(1, Math.round((best.maxCol - best.minCol + 1) * 0.04));
-  const padRows = Math.max(1, Math.round((best.maxRow - best.minRow + 1) * 0.04));
+  const SUBSTANTIAL_BLOB_FRACTION = 0.15;
+  const largestCellCount = Math.max(...blobs.map((b) => b.cellCount));
+  const substantialBlobs = blobs.filter((b) => b.cellCount >= largestCellCount * SUBSTANTIAL_BLOB_FRACTION);
 
-  const x = Math.max(0, (best.minCol - padCols) * cellSize);
-  const y = Math.max(0, (best.minRow - padRows) * cellSize);
-  const right = Math.min(width, (best.maxCol + 1 + padCols) * cellSize);
-  const bottom = Math.min(height, (best.maxRow + 1 + padRows) * cellSize);
+  const minCol = Math.min(...substantialBlobs.map((b) => b.minCol));
+  const maxCol = Math.max(...substantialBlobs.map((b) => b.maxCol));
+  const minRow = Math.min(...substantialBlobs.map((b) => b.minRow));
+  const maxRow = Math.max(...substantialBlobs.map((b) => b.maxRow));
+
+  const padCols = Math.max(1, Math.round((maxCol - minCol + 1) * 0.04));
+  const padRows = Math.max(1, Math.round((maxRow - minRow + 1) * 0.04));
+
+  const x = Math.max(0, (minCol - padCols) * cellSize);
+  const y = Math.max(0, (minRow - padRows) * cellSize);
+  const right = Math.min(width, (maxCol + 1 + padCols) * cellSize);
+  const bottom = Math.min(height, (maxRow + 1 + padRows) * cellSize);
 
   return { x, y, width: right - x, height: bottom - y };
 }
