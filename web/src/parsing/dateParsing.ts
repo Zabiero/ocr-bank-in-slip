@@ -60,8 +60,9 @@ const PATTERNS: Array<{ regex: RegExp; build: (m: RegExpMatchArray) => Omit<Cand
   },
   {
     // 12 Sep 2026 / 12 September 2026 / 12 Mac 2026 / 12Sep2026 (OCR
-    // sometimes drops the spaces entirely around a recognized month name)
-    regex: new RegExp(`\\b(\\d{1,2})\\s*(${MONTH_NAME_PATTERN})\\.?\\s*(\\d{2,4})\\b`, 'gi'),
+    // sometimes drops the spaces entirely around a recognized month name) /
+    // 07-Sep-2026 (hyphen-separated, seen on DuitNow transfer receipts)
+    regex: new RegExp(`\\b(\\d{1,2})[\\s-]*(${MONTH_NAME_PATTERN})\\.?[\\s-]*(\\d{2,4})\\b`, 'gi'),
     build: (m) => {
       const month = MONTHS[m[2].toLowerCase()];
       if (!month) return null;
@@ -142,10 +143,13 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
     return { value: null, confidence: 0 };
   }
 
-  // Prefer a candidate near a "Date"/"Tarikh" label, on the same line or -
-  // for receipts that put the label and value on separate lines, possibly
-  // with a blank line in between (common in OCR block output) - one of the
-  // next few non-blank lines.
+  // Prefer a candidate near a "Date"/"Tarikh" label: on the same line, one
+  // of the next few non-blank lines (for receipts that put the label and
+  // value on separate lines, possibly with a blank line in between - common
+  // in OCR block output), or one of the previous few non-blank lines. A
+  // label-left/value-right table read column-by-column can put the value
+  // *before* its own label instead of on or after it (confirmed on a real
+  // DuitNow receipt: "07-Sep-2026" then "Payment Date").
   const lines = text.split(/\r?\n/);
   const lineSpans: Array<{ start: number; end: number }> = [];
   {
@@ -156,15 +160,29 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
     }
   }
 
+  const candidateOnLine = (j: number) => {
+    const { start, end } = lineSpans[j];
+    return candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
+  };
+
   let nearKeyword: Candidate | null = null;
-  const MAX_LOOKAHEAD = 3;
+  const MAX_LOOKAROUND = 3;
   for (let i = 0; i < lines.length && !nearKeyword; i++) {
     if (!DATE_KEYWORD.test(lines[i])) continue;
 
-    for (let j = i; j < Math.min(lines.length, i + 1 + MAX_LOOKAHEAD); j++) {
+    for (let j = i; j < Math.min(lines.length, i + 1 + MAX_LOOKAROUND); j++) {
       if (j > i && lines[j].trim() === '') continue;
-      const { start, end } = lineSpans[j];
-      const found = candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
+      const found = candidateOnLine(j);
+      if (found) {
+        nearKeyword = found;
+        break;
+      }
+    }
+    if (nearKeyword) break;
+
+    for (let j = i - 1; j > Math.max(-1, i - 1 - MAX_LOOKAROUND); j--) {
+      if (lines[j].trim() === '') continue;
+      const found = candidateOnLine(j);
       if (found) {
         nearKeyword = found;
         break;

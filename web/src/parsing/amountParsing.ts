@@ -1,5 +1,5 @@
 import type { ParsedField } from '../types';
-import { nextNonEmptyLine } from './lineUtils';
+import { nextNonEmptyLine, previousNonEmptyLine } from './lineUtils';
 
 const AMOUNT_KEYWORD = /\b(amount|amaun|total|jumlah)\b/i;
 const CURRENCY_PREFIX_SRC = '(RM|MYR|\\$)';
@@ -70,6 +70,22 @@ export function parseAmount(text: string): { amount: ParsedField<number>; curren
     if (sameLineMatch) {
       bestMatch = { raw: sameLineMatch[2], prefix: sameLineMatch[1], nearKeyword: true };
       break;
+    }
+
+    // A label-left/value-right table can be read column-by-column, putting
+    // the value on the line right before its own label - check that first,
+    // since it's the pattern actually observed on a real receipt (see
+    // previousNonEmptyLine). Currency prefix is required here (unlike the
+    // same-line/next-line checks below): the previous line is more likely to
+    // be unrelated content from a different field (e.g. a reference number),
+    // and a bare number there is too easy to mistake for an amount.
+    const previousLine = previousNonEmptyLine(lines, i - 1);
+    if (previousLine) {
+      const previousLineMatch = firstRealMatch(MONEY_TOKEN_WITH_CURRENCY_G, previousLine);
+      if (previousLineMatch) {
+        bestMatch = { raw: previousLineMatch[2], prefix: previousLineMatch[1], nearKeyword: true };
+        break;
+      }
     }
 
     // Some receipts put the label and value on separate lines - check the next non-blank line too.

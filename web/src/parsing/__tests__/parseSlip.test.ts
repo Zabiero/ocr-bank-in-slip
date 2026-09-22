@@ -186,6 +186,49 @@ PaymentModenasElit
 This receipt is computer generated and no signature is
 required.`;
 
+// Real Tesseract output (captured verbatim) from a DuitNow transfer receipt
+// with a label-left/value-right table layout. Tesseract's SPARSE_TEXT
+// reading order puts several values *before* their own label - the date
+// value sits right after the previous field's label ("SMS Fee") and before
+// its own ("Payment Date"), which a forward-only lookahead from the "Date"
+// keyword would miss. The date itself is also hyphen-separated
+// ("07-Sep-2026"), not space-separated like "12 Sep 2026".
+const DUITNOW_TABLE_LAYOUT_SLIP = `Transaction Approval
+Transaction Details
+Product Type
+DuitNow Transfer
+Reference No
+2609070383287326
+Service Reference No
+021662
+Success
+Approval Status
+3206944911 / MENG SOON AUTO SDN. BHD
+From Account
+New Transfer
+Transfer Mode
+Recipient's DuitNow ID Type
+Account Number
+Recipient Bank
+Hong Leong Bank Berhad
+Fund Transfer
+Transfer Type
+15400016345/DARMA MOTOR SDN BHD
+Recipient's DuitNow ID/Account
+No.
+DIV-003530
+Recipient Reference
+MYR 10,678.00
+Amount
+MYR 0.00
+Fee
+MYR 0.00
+Total Fee Charges
+MYR 0.00
+SMS Fee
+07-Sep-2026
+Payment Date`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -305,6 +348,14 @@ describe('parseSlip', () => {
     expect(parsed.time.value).toBe('06:24:00 PM');
     expect(parsed.amount.value).toBe(4000);
     expect(parsed.referenceNo.value).toBe('20260917RPPEMYKL010HRB80620236');
+  });
+
+  it('parses a hyphenated "07-Sep-2026" date even when it sits before its own label', () => {
+    const { parsed } = parseSlip(DUITNOW_TABLE_LAYOUT_SLIP);
+
+    expect(parsed.date.value).toBe('07-09-2026');
+    expect(parsed.amount.value).toBe(10678);
+    expect(parsed.referenceNo.value).toBe('2609070383287326');
   });
 
   it('never fabricates values when no usable text is found', () => {

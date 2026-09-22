@@ -26,7 +26,7 @@ function findRefValue(line: string): string | null {
   return null;
 }
 
-const LOOKAHEAD_LINES = 3;
+const LOOKAROUND_LINES = 3;
 
 export function parseReferenceNo(text: string): ParsedField<string> {
   const lines = text.split(/\r?\n/);
@@ -45,10 +45,21 @@ export function parseReferenceNo(text: string): ParsedField<string> {
     // another field's text between a label and its value (e.g. a date/time
     // shown beside "Reference ID", with the actual reference number below
     // both). Search a small window of following lines rather than just one.
-    for (let j = i + 1; j < Math.min(lines.length, i + 1 + LOOKAHEAD_LINES); j++) {
+    for (let j = i + 1; j < Math.min(lines.length, i + 1 + LOOKAROUND_LINES); j++) {
       const candidate = findRefValue(lines[j]);
       if (candidate) {
         return { value: candidate, confidence: 88, raw: `${keywordMatch[0]} / ${candidate}` };
+      }
+    }
+
+    // A label-left/value-right table can be read column-by-column, putting
+    // the value on a line *before* its own label instead of on or after it
+    // (confirmed on a real DuitNow receipt, for a different field - the
+    // same reading order applies here on some receipts).
+    for (let j = i - 1; j > Math.max(-1, i - 1 - LOOKAROUND_LINES); j--) {
+      const candidate = findRefValue(lines[j]);
+      if (candidate) {
+        return { value: candidate, confidence: 85, raw: `${keywordMatch[0]} / ${candidate}` };
       }
     }
   }
