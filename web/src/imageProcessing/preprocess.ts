@@ -327,11 +327,18 @@ function autoCropBounds(imageData: ImageData): { x: number; y: number; width: nu
     }
   }
 
-  // A cell counts as "content" once a meaningful fraction of it is ink
-  // (dense text clears this easily; a single thin ruled line or a sparse
-  // handwriting stroke passing through a cell usually doesn't) AND has
-  // enough local contrast to be text rather than a smooth shadow.
-  const DENSITY_THRESHOLD = 0.2;
+  // A cell counts as "content" once it has a little ink AND enough local
+  // contrast to be text rather than a smooth shadow (the std-dev check
+  // above does the real work of rejecting non-text; density mainly rules
+  // out empty cells that just happen to catch a hint of noise/antialiasing,
+  // so it can stay low). Kept low deliberately: a mobile app screenshot's
+  // normal-weight UI font can measure as little as ~5-10% dark-pixel
+  // density per cell at this resolution - real text on a real receipt,
+  // confirmed directly on a photo where the default 0.2 excluded an entire
+  // "Transaction time"/"Transaction ID" section outright (every cell there
+  // measured under 0.1, even though std-dev correctly read 30-55 on the
+  // same cells, well above the text/shadow split).
+  const DENSITY_THRESHOLD = 0.03;
   const STD_DEV_THRESHOLD = 10;
   const isContent = new Uint8Array(cols * rows);
   for (let c = 0; c < cols * rows; c++) {
