@@ -381,25 +381,71 @@ function autoCropBounds(imageData: ImageData): { x: number; y: number; width: nu
   return { x, y, width: right - x, height: bottom - y };
 }
 
-function applyGrayscaleAndContrast(imageData: ImageData): ImageData {
-  const { data } = imageData;
+/**
+ * Local adaptive binarization: each pixel is compared against the average
+ * luminance of its own neighborhood, not one threshold for the whole image.
+ *
+ * A phone photo of a document frequently has uneven lighting - a glare band,
+ * a shadow, a gradient across the frame from an angled light source. A
+ * single global threshold (or a global min/max stretch) treats a pixel the
+ * same regardless of whether its surroundings are bright or dim, so regular-
+ * weight text sitting in a slightly dimmer region of the photo can end up
+ * barely distinguishable from its own local background even though bold
+ * text elsewhere in the same photo reads fine. Verified case: a receipt
+ * line's background measured ~100-150 luminance across most of its width
+ * (a lighting gradient invisible to the eye at normal viewing size) while
+ * the "white" background elsewhere in the same photo measured 220+; a
+ * global threshold that worked for one broke the other. Comparing each
+ * pixel to its own local neighborhood average handles both at once.
+ *
+ * The local average is computed via a summed-area table (integral image),
+ * giving an O(1) box-sum per pixel regardless of window size, so this stays
+ * fast on a full-resolution photo.
+ */
+function applyAdaptiveThreshold(imageData: ImageData): ImageData {
+  const { data, width, height } = imageData;
 
-  // Histogram-stretch contrast: map the observed [min, max] luminance range to
-  // [0, 255] so faint pen/thermal-print text becomes easier for OCR to read.
-  let min = 255;
-  let max = 0;
-  const luminances = new Float32Array(data.length / 4);
+  const luminance = new Float32Array(width * height);
   for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    luminances[p] = l;
-    if (l < min) min = l;
-    if (l > max) max = l;
+    luminance[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
   }
 
-  const range = Math.max(1, max - min);
-  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    const stretched = ((luminances[p] - min) / range) * 255;
-    data[i] = data[i + 1] = data[i + 2] = stretched;
+  // Integral image with a 1px zero border (top/left) for simple box-sum math.
+  const stride = width + 1;
+  const integral = new Float64Array(stride * (height + 1));
+  for (let y = 0; y < height; y++) {
+    let rowSum = 0;
+    for (let x = 0; x < width; x++) {
+      rowSum += luminance[y * width + x];
+      integral[(y + 1) * stride + (x + 1)] = integral[y * stride + (x + 1)] + rowSum;
+    }
+  }
+
+  // Window scaled to image size (rather than a fixed pixel radius) so
+  // "local" stays roughly the same relative scale - about text-line height -
+  // regardless of the photo's resolution.
+  const radius = Math.max(20, Math.round(width / 40));
+  // How far below its local average a pixel must be to count as ink. Text
+  // strokes are reliably well below their surroundings; JPEG noise and mild
+  // shading aren't.
+  const OFFSET = 15;
+
+  for (let y = 0; y < height; y++) {
+    const y0 = Math.max(0, y - radius);
+    const y1 = Math.min(height, y + radius + 1);
+    for (let x = 0; x < width; x++) {
+      const x0 = Math.max(0, x - radius);
+      const x1 = Math.min(width, x + radius + 1);
+      const sum =
+        integral[y1 * stride + x1] - integral[y0 * stride + x1] - integral[y1 * stride + x0] + integral[y0 * stride + x0];
+      const count = (x1 - x0) * (y1 - y0);
+      const localMean = sum / count;
+
+      const p = y * width + x;
+      const value = luminance[p] < localMean - OFFSET ? 0 : 255;
+      const i = p * 4;
+      data[i] = data[i + 1] = data[i + 2] = value;
+    }
   }
 
   return imageData;
@@ -463,7 +509,7 @@ export async function preprocessImage(file: File): Promise<PreprocessResult> {
     croppedCtx = upscaledCtx;
   }
 
-  const enhancedData = applyGrayscaleAndContrast(croppedCtx.getImageData(0, 0, cropped.width, cropped.height));
+  const enhancedData = applyAdaptiveThreshold(croppedCtx.getImageData(0, 0, cropped.width, cropped.height));
   croppedCtx.putImageData(enhancedData, 0, 0);
 
   const thumbnail = document.createElement('canvas');
