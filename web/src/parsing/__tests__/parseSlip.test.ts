@@ -212,6 +212,29 @@ Transaction ID
 
 05`;
 
+// Actual OCR output (captured verbatim via "View text") from a real Shopee
+// SPayLater instalment receipt screenshot - confirms the cross-line fix
+// above holds on a second real slip with the same "unlabeled currency-
+// prefixed amount, blank line before the next fragment" shape ("rm3,499.83"
+// lowercase, no "Amount"/"Total" keyword line anywhere on this slip either).
+const SHOPEE_INSTALMENT_SLIP = `< Transaction Details
+
+rm3,499.83
+
+Order Amount
+
+Paid by
+
+SPayLater Instalment
+
+Period
+
+24
+
+Created Time
+
+27 Jul 2026 19:03`;
+
 // Actual OCR output (captured verbatim via "View text") from a real DuitNow
 // transfer receipt photo. Tesseract dropped the leading character of nearly
 // every label on this particular photo ("Transaction" -> "ransaction",
@@ -434,6 +457,13 @@ describe('parseSlip', () => {
     expect(parsed.amount.value).toBe(18.5);
     expect(parsed.date.value).toBe('21-09-2026');
     expect(parsed.time.value).toBe('09:30:00 AM');
+  });
+
+  it('parses an unlabeled lowercase-prefixed amount on a second real slip shape', () => {
+    const { parsed } = parseSlip(SHOPEE_INSTALMENT_SLIP);
+
+    expect(parsed.amount.value).toBe(3499.83);
+    expect(parsed.date.value).toBe('27-07-2026');
   });
 
   it('matches "Reference No" even with its leading letter dropped, not "Service Reference No" instead', () => {
