@@ -73,6 +73,7 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
                   value={slip.parsed.time.value}
                   confidence={slip.parsed.time.confidence}
                   onCommit={(v) => onEdit(slip.id, 'time', v)}
+                  isOptional
                 />
               </td>
               <td className="px-3 py-2">

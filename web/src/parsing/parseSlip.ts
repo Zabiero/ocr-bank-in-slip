@@ -42,12 +42,22 @@ export function parseSlip(rawText: string, options: ParseSlipOptions = {}): { pa
   return { parsed, maskedText };
 }
 
-/** A slip is "OK" only when every required field was found with high confidence. */
+/**
+ * A slip is "OK" only when every required field was found with high
+ * confidence. Time is deliberately excluded: plenty of valid slips (a
+ * formal bank payment advice, for instance) only ever state a date, with
+ * no time of day anywhere on the document - treating that as a review-
+ * worthy problem the way a genuinely missing amount or reference no. would
+ * be produces a false "needs review" on an otherwise perfectly good slip.
+ * If time *was* found, it's still shown and still confidence-checked like
+ * any other field - only its absence is treated as fine.
+ */
 export function computeStatus(parsed: ParsedSlip): 'ok' | 'needs_review' {
-  const requiredFields = [parsed.date, parsed.time, parsed.amount, parsed.referenceNo, parsed.bank];
+  const requiredFields = [parsed.date, parsed.amount, parsed.referenceNo, parsed.bank];
   const allPresent = requiredFields.every((f) => f.value !== null && f.value !== undefined);
   const allConfident = requiredFields.every((f) => f.confidence >= CONFIDENCE_WARN_THRESHOLD);
-  return allPresent && allConfident ? 'ok' : 'needs_review';
+  const timeOkIfPresent = parsed.time.value === null || parsed.time.confidence >= CONFIDENCE_WARN_THRESHOLD;
+  return allPresent && allConfident && timeOkIfPresent ? 'ok' : 'needs_review';
 }
 
 export function emptyParsedSlip(): ParsedSlip {

@@ -6,13 +6,19 @@ interface EditableCellProps {
   confidence: number;
   onCommit: (value: string) => void;
   placeholder?: string;
+  /** True for a field that's genuinely absent on plenty of valid slips (e.g.
+   * time, on a document that only ever states a date) - missing shows as a
+   * neutral "N/A" instead of the red "missing" flag used for fields that
+   * should always be present, and doesn't push the slip into needs-review. */
+  isOptional?: boolean;
 }
 
-export default function EditableCell({ value, confidence, onCommit, placeholder }: EditableCellProps) {
+export default function EditableCell({ value, confidence, onCommit, placeholder, isOptional }: EditableCellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
 
-  const cellClass = value == null ? 'field-missing' : confidence < CONFIDENCE_WARN_THRESHOLD ? 'field-warn' : 'field-ok';
+  const cellClass =
+    value == null ? (isOptional ? 'field-ok' : 'field-missing') : confidence < CONFIDENCE_WARN_THRESHOLD ? 'field-warn' : 'field-ok';
 
   if (editing) {
     return (
@@ -48,7 +54,12 @@ export default function EditableCell({ value, confidence, onCommit, placeholder 
       className={`w-full min-w-[6rem] rounded px-1 py-0.5 text-left text-sm ${cellClass}`}
       title="Click to edit"
     >
-      {value ?? <span className="italic text-red-600">{placeholder ?? 'missing'}</span>}
+      {value ??
+        (isOptional ? (
+          <span className="italic text-slate-400">{placeholder ?? 'N/A'}</span>
+        ) : (
+          <span className="italic text-red-600">{placeholder ?? 'missing'}</span>
+        ))}
     </button>
   );
 }

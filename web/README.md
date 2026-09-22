@@ -146,9 +146,13 @@ Every extracted field carries a 0–100 confidence score (`ParsedField<T>` in
   a guess.
 
 In the table, any present field below 80% confidence is highlighted yellow
-("Needs review"); a missing field is highlighted red. A slip's overall
-**Status** is `OK` only when every required field (date, time, amount,
-reference no., bank) is present and ≥ 80% confident.
+("Needs review"); a missing required field is highlighted red. Time is the
+one exception — plenty of valid slips (a formal bank payment advice, for
+instance) never state a time of day at all, so a missing time shows as a
+neutral "N/A" instead and doesn't count against the slip. A slip's overall
+**Status** is `OK` only when every other required field (date, amount,
+reference no., bank) is present and ≥ 80% confident, and time - if it was
+found at all - is also ≥ 80% confident.
 
 Click any cell to correct it — a manual edit is always treated as 100%
 confident.

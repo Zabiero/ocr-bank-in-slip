@@ -447,7 +447,7 @@ describe('parseSlip', () => {
     expect(computeStatus(parsed)).toBe('ok');
   });
 
-  it('corrects common OCR digit confusions in the amount and flags a missing time as needs review', () => {
+  it('corrects common OCR digit confusions in the amount, and does not flag a missing time as needs review', () => {
     const { parsed } = parseSlip(PUBLIC_BANK_SLIP_MISSING_TIME);
 
     // "l,2S0.00" -> "1,250.00"
@@ -456,7 +456,10 @@ describe('parseSlip', () => {
     expect(parsed.time.value).toBeNull();
     expect(parsed.time.confidence).toBe(0);
     expect(parsed.bank.value).toBe('Public Bank');
-    expect(computeStatus(parsed)).toBe('needs_review');
+    // Time is treated as optional (shown as "N/A", not a review-worthy gap) -
+    // this slip's other required fields are all present and confident, so
+    // an absent time alone shouldn't block "ok" status.
+    expect(computeStatus(parsed)).toBe('ok');
   });
 
   it('normalizes a 2-digit year and flags an unrecognized bank instead of guessing one', () => {
