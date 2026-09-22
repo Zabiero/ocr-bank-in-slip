@@ -602,11 +602,8 @@ describe('parseSlip', () => {
     expect(computeStatus(parsed)).toBe('needs_review');
   });
 
-  it('resolves an ambiguous numeric date using the day-first vs month-first setting', () => {
-    const dayFirst = parseSlip('Date: 03/04/2026\nAmount: RM10.00', { dateAmbiguityMode: 'day-first' });
-    const monthFirst = parseSlip('Date: 03/04/2026\nAmount: RM10.00', { dateAmbiguityMode: 'month-first' });
-
-    expect(dayFirst.parsed.date.value).toBe('03-04-2026');
-    expect(monthFirst.parsed.date.value).toBe('04-03-2026');
+  it('resolves an ambiguous numeric date as day-first (Malaysian convention)', () => {
+    const { parsed } = parseSlip('Date: 03/04/2026\nAmount: RM10.00');
+    expect(parsed.date.value).toBe('03-04-2026');
   });
 });

@@ -125,10 +125,9 @@ Date parsing lives in `src/parsing/dateParsing.ts` and is pattern-based:
    `src/parsing/__tests__/parseSlip.test.ts` (or a focused test in a new
    `dateParsing.test.ts`) and run `npm test`.
 
-Numeric `DD/MM` vs `MM/DD` ambiguity (when both parts are ≤ 12) is resolved
-using the **"Ambiguous dates"** setting (day-first by default, matching
-Malaysian convention) — this is a deliberate, user-controlled choice, never
-a silent guess.
+Numeric `DD/MM` vs `MM/DD` ambiguity (when both parts are ≤ 12) is always
+resolved day-first, matching Malaysian convention — there's no ambiguous-
+dates setting to configure.
 
 ## Confidence & review rules
 
@@ -202,5 +201,5 @@ realistic OCR text samples covering Maybank, CIMB, Public Bank, an
 unrecognized bank, and Hong Leong Bank slips — including Malay labels,
 month-name dates, 2-digit years, OCR digit confusions, a missing field, an
 unknown bank, and a garbage/no-text input — asserting the extracted fields,
-confidence-driven status, account-number masking, and the day-first vs.
-month-first ambiguity setting.
+confidence-driven status, account-number masking, and day-first resolution
+of ambiguous numeric dates.

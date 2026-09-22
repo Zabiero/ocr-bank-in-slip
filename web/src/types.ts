@@ -52,19 +52,15 @@ export interface SlipRecord {
   errorMessage?: string;
 }
 
-export type DateAmbiguityMode = 'day-first' | 'month-first';
-
 export type OcrEngineId = 'tesseract' | 'cloud-vision';
 
 export interface AppSettings {
-  dateAmbiguityMode: DateAmbiguityMode;
   ocrEngine: OcrEngineId;
   /** User-supplied key for the optional cloud OCR engine. Stored in localStorage only. */
   cloudVisionApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  dateAmbiguityMode: 'day-first',
   ocrEngine: 'tesseract',
   cloudVisionApiKey: '',
 };

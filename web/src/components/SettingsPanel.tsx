@@ -20,18 +20,6 @@ export default function SettingsPanel({ settings, onChange, onClearAll, onClose 
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Ambiguous dates (e.g. 03/04/2026)</label>
-            <select
-              value={settings.dateAmbiguityMode}
-              onChange={(e) => onChange({ ...settings, dateAmbiguityMode: e.target.value as AppSettings['dateAmbiguityMode'] })}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-            >
-              <option value="day-first">Day first (DD/MM/YYYY) — recommended for Malaysia</option>
-              <option value="month-first">Month first (MM/DD/YYYY)</option>
-            </select>
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-slate-700">OCR engine</label>
             <select
               value={settings.ocrEngine}

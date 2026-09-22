@@ -26,7 +26,7 @@ export async function processFile(file: File, settings: AppSettings, onStage?: O
     const ocrResult = await engine.extractText(canvas);
 
     onStage?.('parsing');
-    const { parsed, maskedText } = parseSlip(ocrResult.text, { dateAmbiguityMode: settings.dateAmbiguityMode });
+    const { parsed, maskedText } = parseSlip(ocrResult.text);
     const status = computeStatus(parsed);
 
     if (!maskedText.trim()) {
@@ -96,7 +96,7 @@ export async function rescanSlip(record: SlipRecord, settings: AppSettings): Pro
 
     const engine = getOcrEngine(settings);
     const ocrResult = await engine.extractText(canvas);
-    const { parsed, maskedText } = parseSlip(ocrResult.text, { dateAmbiguityMode: settings.dateAmbiguityMode });
+    const { parsed, maskedText } = parseSlip(ocrResult.text);
 
     return {
       ...record,

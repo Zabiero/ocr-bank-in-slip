@@ -1,4 +1,4 @@
-import type { Bank, DateAmbiguityMode, ParsedSlip } from '../types';
+import type { Bank, ParsedSlip } from '../types';
 import { CONFIDENCE_WARN_THRESHOLD } from '../types';
 import { BANKS, detectBank } from './banks';
 import { parseDate } from './dateParsing';
@@ -8,7 +8,6 @@ import { parseReferenceNo } from './referenceParsing';
 import { maskAccountNumbers } from './maskAccountNumbers';
 
 export interface ParseSlipOptions {
-  dateAmbiguityMode?: DateAmbiguityMode;
   banks?: Bank[];
 }
 
@@ -18,12 +17,11 @@ export interface ParseSlipOptions {
  * independently of whichever OCR engine produced the text.
  */
 export function parseSlip(rawText: string, options: ParseSlipOptions = {}): { parsed: ParsedSlip; maskedText: string } {
-  const dateAmbiguityMode = options.dateAmbiguityMode ?? 'day-first';
   const banks = options.banks ?? BANKS;
 
   const { maskedText, masked } = maskAccountNumbers(rawText);
 
-  const date = parseDate(maskedText, dateAmbiguityMode);
+  const date = parseDate(maskedText);
   const time = parseTime(maskedText);
   const { amount, currency } = parseAmount(maskedText);
   const referenceNo = parseReferenceNo(maskedText);

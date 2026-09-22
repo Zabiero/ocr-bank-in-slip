@@ -1,4 +1,4 @@
-import type { DateAmbiguityMode, ParsedField } from '../types';
+import type { ParsedField } from '../types';
 
 const DATE_KEYWORD = /\b(date|tarikh)\b/i;
 
@@ -46,7 +46,7 @@ interface Candidate {
   day: number;
   month: number;
   year: number;
-  /** True when day/month were both <= 12, so the day-first/month-first setting decided the order. */
+  /** True when day/month were both <= 12, so day-first (Malaysian convention) decided the order. */
   ambiguous: boolean;
   matchIndex: number;
   matchText: string;
@@ -137,7 +137,7 @@ function format(day: number, month: number, year: number): string {
   return `${dd}-${mm}-${year}`;
 }
 
-export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<string> {
+export function parseDate(text: string): ParsedField<string> {
   const candidates = findAllCandidates(text);
   if (candidates.length === 0) {
     return { value: null, confidence: 0 };
@@ -205,20 +205,9 @@ export function parseDate(text: string, mode: DateAmbiguityMode): ParsedField<st
   }
 
   const chosen = nearKeyword ?? candidates[0];
-  const day = chosen.ambiguous && mode === 'month-first' ? chosen.month : chosen.day;
-  const month = chosen.ambiguous && mode === 'month-first' ? chosen.day : chosen.month;
-
-  if (!isValidDate({ day, month, year: chosen.year })) {
-    // Swapping for month-first made it invalid (e.g. day > 12); fall back to the only valid order.
-    return {
-      value: format(chosen.day, chosen.month, chosen.year),
-      confidence: nearKeyword ? 90 : 70,
-      raw: chosen.matchText,
-    };
-  }
 
   let confidence = nearKeyword ? 95 : 75;
   if (chosen.ambiguous) confidence -= 10;
 
-  return { value: format(day, month, chosen.year), confidence, raw: chosen.matchText };
+  return { value: format(chosen.day, chosen.month, chosen.year), confidence, raw: chosen.matchText };
 }
