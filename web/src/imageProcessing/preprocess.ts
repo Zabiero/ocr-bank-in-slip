@@ -270,6 +270,21 @@ function otsuThreshold(histogram: Uint32Array, totalPixels: number): number {
  * largest one is merged into the final crop - keeps the document's own
  * separate sections together while still dropping small, unrelated marks.
  *
+ * A cell also has to clear a local-contrast (std-dev) bar, not just a dark-
+ * pixel density one. A real shadow across part of a photo can be as dark as
+ * (or darker than) actual text and cover a large contiguous area - by
+ * density alone it can outrank the document's own text as the "biggest
+ * blob", cropping to the empty shadowed area instead (confirmed on a real
+ * photo: a shadow measured up to 100% dark-pixel density, entirely
+ * excluding the receipt above it). But a shadow is smooth - neighboring
+ * pixels are close in value - while text is high-frequency (black strokes
+ * against white background within the same small cell). Requiring real
+ * local variance excludes the shadow without needing a different density
+ * threshold (which can't work: the shadow is often literally darker than
+ * the text). The outermost ring of cells is also excluded outright, since a
+ * photo's physical/lighting edge is a common source of this kind of false
+ * signal too.
+ *
  * Not a substitute for real perspective/contour detection (see the module
  * doc comment) - clutter directly touching the document's own edge still
  * merges into the same blob - but a real improvement over a global bounding
@@ -296,24 +311,44 @@ function autoCropBounds(imageData: ImageData): { x: number; y: number; width: nu
 
   const darkCount = new Int32Array(cols * rows);
   const totalCount = new Int32Array(cols * rows);
+  const luminanceSum = new Float64Array(cols * rows);
+  const luminanceSumSq = new Float64Array(cols * rows);
 
   for (let y = 0; y < height; y++) {
     const row = Math.min(rows - 1, Math.floor(y / cellSize));
     for (let x = 0; x < width; x++) {
       const col = Math.min(cols - 1, Math.floor(x / cellSize));
       const idx = row * cols + col;
+      const l = luminance[y * width + x];
       totalCount[idx]++;
-      if (luminance[y * width + x] < darkThreshold) darkCount[idx]++;
+      if (l < darkThreshold) darkCount[idx]++;
+      luminanceSum[idx] += l;
+      luminanceSumSq[idx] += l * l;
     }
   }
 
-  // A cell counts as "content" once a meaningful fraction of it is ink -
-  // dense text clears this easily; a single thin ruled line or a sparse
-  // handwriting stroke passing through a cell usually doesn't.
+  // A cell counts as "content" once a meaningful fraction of it is ink
+  // (dense text clears this easily; a single thin ruled line or a sparse
+  // handwriting stroke passing through a cell usually doesn't) AND has
+  // enough local contrast to be text rather than a smooth shadow.
   const DENSITY_THRESHOLD = 0.2;
+  const STD_DEV_THRESHOLD = 10;
   const isContent = new Uint8Array(cols * rows);
   for (let c = 0; c < cols * rows; c++) {
-    isContent[c] = totalCount[c] > 0 && darkCount[c] / totalCount[c] > DENSITY_THRESHOLD ? 1 : 0;
+    if (totalCount[c] === 0) continue;
+    const density = darkCount[c] / totalCount[c];
+    const mean = luminanceSum[c] / totalCount[c];
+    const variance = Math.max(0, luminanceSumSq[c] / totalCount[c] - mean * mean);
+    const stdDev = Math.sqrt(variance);
+    isContent[c] = density > DENSITY_THRESHOLD && stdDev > STD_DEV_THRESHOLD ? 1 : 0;
+  }
+  for (let col = 0; col < cols; col++) {
+    isContent[col] = 0;
+    isContent[(rows - 1) * cols + col] = 0;
+  }
+  for (let row = 0; row < rows; row++) {
+    isContent[row * cols] = 0;
+    isContent[row * cols + (cols - 1)] = 0;
   }
 
   const visited = new Uint8Array(cols * rows);
