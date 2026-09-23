@@ -5,8 +5,9 @@ receipts) — by camera or file upload — and extracts date, time, amount,
 reference number and bank name into an editable, exportable table.
 
 Everything runs **client-side**: OCR, image cleanup, parsing and storage all
-happen in the browser. No backend, no server-side image storage. See
-[Privacy](#privacy) below.
+happen in the browser, with no backend required. An optional central
+record-keeping feature (off by default) can additionally sync each scan to a
+Supabase project for business/admin use. See [Privacy](#privacy) below.
 
 ## Architecture
 
@@ -17,6 +18,16 @@ web/
     processFile.ts            Orchestrates one file: preprocess -> OCR -> parse -> SlipRecord
     duplicateDetection.ts     Same reference no. + amount => duplicate warning
     sortSlips.ts              Sorts slips by any column, missing values always last
+    filterSlips.ts            Filter by bank/reference/date range, shared by both tables
+    collectSubmission.ts      Optional: best-effort upload of a scan to Supabase
+
+    lib/
+      supabaseClient.ts        null unless VITE_SUPABASE_* env vars are set
+
+    admin/                    Optional admin view at /#admin - see "Central record-keeping"
+      AdminApp.tsx              Auth gate (Supabase email/password login)
+      AdminTable.tsx             Same sort/filter/image-preview UX as the local table
+      adminSlips.ts              Fetch/delete rows, signed image URLs
 
     imageProcessing/
       preprocess.ts            PDF/HEIC decoding, EXIF auto-rotate, auto-crop,
@@ -173,23 +184,102 @@ in `src/sortSlips.ts`, unit tested independently of the table component.
 ## Privacy
 
 - The default OCR engine and all image preprocessing run **on-device**;
-  slip photos never leave the browser.
-- Slips and settings are stored only in this browser, via **IndexedDB**
-  (`bank-slip-ocr` database) and `localStorage`. Nothing is sent to any
-  server by this app.
+  slip photos are processed entirely in the browser doing the scanning.
+- Slips and settings are stored **locally** in that browser, via
+  **IndexedDB** (`bank-slip-ocr` database) and `localStorage` - this local
+  copy is never sent anywhere by this app on its own.
+- If **central record-keeping** is configured (see below), each completed
+  scan is *also* uploaded - full images and all - to a shared Supabase
+  project so the business owner can review every submission from one place.
+  This is a deliberate feature for internal/staff use (e.g. a cashier
+  scanning payment proof), not a public-facing default - decide whether the
+  people using this deployment need to be told before turning it on.
 - If you enable **Cloud Vision** in Settings, each slip image is sent to
   Google's Vision API using your own API key — the UI discloses this
   before you can turn it on, and the key never leaves `localStorage`.
 - Account numbers detected near an "Account No" / "No Akaun" label are
-  masked (`****3322`) everywhere the app keeps or displays OCR text.
-- **Clear all data** in Settings permanently deletes every stored slip and
-  setting from this browser.
+  masked (`****3322`) everywhere the app keeps or displays OCR text -
+  including in the central record, since it's built from the same masked
+  text.
+- **Clear all data** in Settings permanently deletes every locally stored
+  slip and setting from that browser; it does not touch the central record.
 
 Clicking a slip's thumbnail opens a full-size preview showing the
 **processed** image (cropped, deskewed, black-and-white) that OCR actually
 read — click **"Show original photo"** in that preview to switch to the
 original, full-colour, upright photo you captured or uploaded. Both versions
 are kept for every slip.
+
+## Central record-keeping
+
+Optional: lets a business owner see every slip scanned by anyone using the
+app (e.g. a cashier), from one admin page - full images included. Off by
+default; nothing changes until you finish this setup.
+
+**1. Create a free Supabase project** at [supabase.com](https://supabase.com)
+(Database → free tier is enough). Note down, from Settings → API:
+the **Project URL** and the **anon/public** API key.
+
+**2. Run this once in the Supabase SQL Editor** to create the table, storage
+bucket, and access rules (the `anon` role, used by every visitor's browser,
+can only *insert*; only a signed-in admin can *read* or *delete*):
+
+```sql
+create table public.slips (
+  id uuid primary key,
+  created_at timestamptz not null default now(),
+  file_name text,
+  date text,
+  time text,
+  amount numeric,
+  currency text,
+  reference_no text,
+  bank text,
+  status text not null,
+  ocr_text text,
+  ocr_confidence numeric,
+  ocr_engine text,
+  masked_account_numbers text[],
+  original_image_path text,
+  processed_image_path text
+);
+
+alter table public.slips enable row level security;
+
+create policy "anon can insert slips" on public.slips
+  for insert to anon with check (true);
+create policy "authenticated can read slips" on public.slips
+  for select to authenticated using (true);
+create policy "authenticated can delete slips" on public.slips
+  for delete to authenticated using (true);
+
+insert into storage.buckets (id, name, public) values ('slip-images', 'slip-images', false);
+
+create policy "anon can upload slip images" on storage.objects
+  for insert to anon with check (bucket_id = 'slip-images');
+create policy "authenticated can read slip images" on storage.objects
+  for select to authenticated using (bucket_id = 'slip-images');
+create policy "authenticated can delete slip images" on storage.objects
+  for delete to authenticated using (bucket_id = 'slip-images');
+```
+
+**3. Create your own admin login**: Supabase dashboard → Authentication →
+Users → Add user (email + password). This is the account you'll use to view
+records - there's no public sign-up in the app itself.
+
+**4. Wire up the app**: add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+(from step 1) as GitHub repo secrets (Settings → Secrets and variables →
+Actions) so the deploy workflow can build them in - see `.env.example` for
+local dev. Push any commit (or re-run the workflow) to pick them up.
+
+**5. View records** at `<your-site-url>/#admin` (e.g.
+`https://zabiero.github.io/ocr-bank-in-slip/#admin`), signing in with the
+account from step 3. The admin table supports the same sort/filter as the
+main results table, plus viewing each slip's original photo and deleting
+records. It's a separate view from the local one on the same device -
+scanning a slip still saves it locally first either way; the central copy is
+an additional, best-effort upload (see `src/collectSubmission.ts`) that
+never blocks or fails the local scan if it can't reach Supabase.
 
 ## Known limitations
 

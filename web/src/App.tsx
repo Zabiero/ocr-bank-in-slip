@@ -11,18 +11,13 @@ import { useSettings } from './hooks/useSettings';
 import { processFile, rescanSlip } from './processFile';
 import { editSlipField, computeStatus, type EditableSlipField } from './parsing/parseSlip';
 import { findDuplicate } from './duplicateDetection';
+import { submitSlipRecord } from './collectSubmission';
+import { filterSlips } from './filterSlips';
 import { downloadCsv } from './export/csv';
 import { downloadXlsx } from './export/xlsx';
 import { copySlipsToClipboard } from './export/clipboard';
 import { downloadTrainingData } from './export/trainingData';
 import type { ProcessingStage, SlipRecord } from './types';
-
-function parseDdMmYyyy(value: string | null): Date | null {
-  if (!value) return null;
-  const m = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (!m) return null;
-  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-}
 
 type Toast = { id: string; message: string; tone: 'info' | 'warning' };
 
@@ -68,6 +63,7 @@ export default function App() {
       await upsertSlip(finalRecord);
       workingSlips = [finalRecord, ...workingSlips];
       setQueue((prev) => prev.filter((q) => q.id !== id));
+      void submitSlipRecord(finalRecord);
     }
   }
 
@@ -94,21 +90,7 @@ export default function App() {
     }
   }
 
-  const filteredSlips = useMemo(() => {
-    return slips.filter((s) => {
-      if (filters.bank && s.parsed.bank.value !== filters.bank) return false;
-      if (filters.search && !(s.parsed.referenceNo.value ?? '').toLowerCase().includes(filters.search.toLowerCase())) {
-        return false;
-      }
-      if (filters.dateFrom || filters.dateTo) {
-        const d = parseDdMmYyyy(s.parsed.date.value);
-        if (!d) return false;
-        if (filters.dateFrom && d < new Date(filters.dateFrom)) return false;
-        if (filters.dateTo && d > new Date(`${filters.dateTo}T23:59:59`)) return false;
-      }
-      return true;
-    });
-  }, [slips, filters]);
+  const filteredSlips = useMemo(() => filterSlips(slips, filters), [slips, filters]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">

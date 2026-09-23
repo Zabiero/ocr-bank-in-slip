@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { EditableSlipField } from '../parsing/parseSlip';
 import type { SlipRecord } from '../types';
-import { sortSlips, type SortColumn, type SortDirection } from '../sortSlips';
+import { sortSlips, type SortColumn } from '../sortSlips';
+import SortableHeader, { nextSortState, type SortState } from './SortableHeader';
 import EditableCell from './EditableCell';
 import StatusBadge from './StatusBadge';
 
@@ -13,60 +14,13 @@ interface ResultsTableProps {
   rescanningId: string | null;
 }
 
-/** Default direction when a column is first clicked - amount/date read
- * naturally highest/latest-first, while reference no./bank read A-Z first. */
-const DEFAULT_DIRECTION: Record<SortColumn, SortDirection> = {
-  date: 'desc',
-  time: 'desc',
-  amount: 'desc',
-  referenceNo: 'asc',
-  bank: 'asc',
-  status: 'asc',
-};
-
-function SortableHeader({
-  label,
-  column,
-  className,
-  sort,
-  onSort,
-}: {
-  label: string;
-  column: SortColumn;
-  className: string;
-  sort: { column: SortColumn; direction: SortDirection } | null;
-  onSort: (column: SortColumn) => void;
-}) {
-  const active = sort?.column === column;
-  return (
-    <th className={className}>
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className={`flex items-center gap-1 hover:text-slate-700 ${active ? 'text-slate-700' : ''}`}
-        title={`Sort by ${label}`}
-      >
-        {label}
-        <span className="text-[10px]">{active ? (sort!.direction === 'asc' ? '▲' : '▼') : '⇅'}</span>
-      </button>
-    </th>
-  );
-}
-
 export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescanningId }: ResultsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [previewSlip, setPreviewSlip] = useState<SlipRecord | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
+  const [sort, setSort] = useState<SortState>(null);
 
-  const handleSort = (column: SortColumn) => {
-    setSort((current) => {
-      if (current?.column === column) {
-        return { column, direction: current.direction === 'asc' ? 'desc' : 'asc' };
-      }
-      return { column, direction: DEFAULT_DIRECTION[column] };
-    });
-  };
+  const handleSort = (column: SortColumn) => setSort((current) => nextSortState(current, column));
 
   const sortedSlips = useMemo(
     () => (sort ? sortSlips(slips, sort.column, sort.direction) : slips),
