@@ -65,30 +65,33 @@ export async function submitSlipRecord(record: SlipRecord): Promise<void> {
   try {
     const row = buildSlipRow(record);
 
-    const uploads: Promise<unknown>[] = [];
+    // Plain insert, not upsert: record.id is a freshly generated UUID that
+    // never already exists, and Postgres RLS requires an UPDATE policy to be
+    // satisfiable for an ON CONFLICT DO UPDATE clause to even be planned -
+    // regardless of whether a conflict actually occurs at runtime. The anon
+    // role here only has an INSERT policy (see README.md "Central
+    // record-keeping"), so upsert() failed with a 403/400 even on a brand
+    // new row; insert() has no such requirement.
+    const uploads: Promise<{ error: { message: string } | null }>[] = [];
     if (row.original_image_path && record.originalImageDataUrl) {
       uploads.push(
         supabase.storage
           .from(SLIP_IMAGES_BUCKET)
-          .upload(row.original_image_path, dataUrlToBlob(record.originalImageDataUrl), {
-            contentType: 'image/jpeg',
-            upsert: true,
-          }),
+          .upload(row.original_image_path, dataUrlToBlob(record.originalImageDataUrl), { contentType: 'image/jpeg' }),
       );
     }
     if (row.processed_image_path && record.imageDataUrl) {
       uploads.push(
         supabase.storage
           .from(SLIP_IMAGES_BUCKET)
-          .upload(row.processed_image_path, dataUrlToBlob(record.imageDataUrl), {
-            contentType: 'image/jpeg',
-            upsert: true,
-          }),
+          .upload(row.processed_image_path, dataUrlToBlob(record.imageDataUrl), { contentType: 'image/jpeg' }),
       );
     }
-    await Promise.all(uploads);
+    const uploadResults = await Promise.all(uploads);
+    const uploadError = uploadResults.find((r) => r.error)?.error;
+    if (uploadError) throw uploadError;
 
-    const { error } = await supabase.from('slips').upsert(row);
+    const { error } = await supabase.from('slips').insert(row);
     if (error) throw error;
   } catch (err) {
     console.warn('Could not sync this slip to the central record (it is still saved locally):', err);
