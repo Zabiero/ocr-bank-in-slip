@@ -222,7 +222,19 @@ the **Project URL** and the **anon/public** API key.
 
 **2. Run this once in the Supabase SQL Editor** to create the table, storage
 bucket, and access rules (the `anon` role, used by every visitor's browser,
-can only *insert*; only a signed-in admin can *read* or *delete*):
+can insert/update its own submissions; only a signed-in admin can *delete*).
+Storage needs both an INSERT *and* an UPDATE policy for `anon` even though
+the app only ever uploads new files - Supabase Storage's own upload
+implementation always runs an upsert-shaped query under the hood, and
+Postgres requires the UPDATE policy to be satisfiable for that query to be
+planned at all, regardless of whether a real conflict occurs. It also needs
+a SELECT policy for `anon`, for the same reason: an INSERT/UPDATE's
+`RETURNING` clause (used to report the upload back to the browser) is
+itself checked against the SELECT policy. `authenticated` (a signed-in
+admin) gets its own INSERT/UPDATE too, so testing or scanning while logged
+into the admin account works exactly the same as an anonymous cashier's
+browser - Supabase Auth sessions are shared across the whole site, so it's
+easy to end up "authenticated" without meaning to.
 
 ```sql
 create table public.slips (
@@ -248,6 +260,10 @@ alter table public.slips enable row level security;
 
 create policy "anon can insert slips" on public.slips
   for insert to anon with check (true);
+create policy "anon can update slips" on public.slips
+  for update to anon using (true) with check (true);
+create policy "authenticated can also insert slips" on public.slips
+  for insert to authenticated with check (true);
 create policy "authenticated can read slips" on public.slips
   for select to authenticated using (true);
 create policy "authenticated can delete slips" on public.slips
@@ -257,6 +273,14 @@ insert into storage.buckets (id, name, public) values ('slip-images', 'slip-imag
 
 create policy "anon can upload slip images" on storage.objects
   for insert to anon with check (bucket_id = 'slip-images');
+create policy "anon can update slip images" on storage.objects
+  for update to anon using (bucket_id = 'slip-images') with check (bucket_id = 'slip-images');
+create policy "anon can read own upload metadata" on storage.objects
+  for select to anon using (bucket_id = 'slip-images');
+create policy "authenticated can also upload slip images" on storage.objects
+  for insert to authenticated with check (bucket_id = 'slip-images');
+create policy "authenticated can also update slip images" on storage.objects
+  for update to authenticated using (bucket_id = 'slip-images') with check (bucket_id = 'slip-images');
 create policy "authenticated can read slip images" on storage.objects
   for select to authenticated using (bucket_id = 'slip-images');
 create policy "authenticated can delete slip images" on storage.objects
@@ -279,7 +303,9 @@ main results table, plus viewing each slip's original photo and deleting
 records. It's a separate view from the local one on the same device -
 scanning a slip still saves it locally first either way; the central copy is
 an additional, best-effort upload (see `src/collectSubmission.ts`) that
-never blocks or fails the local scan if it can't reach Supabase.
+never blocks or fails the local scan if it can't reach Supabase. Correcting
+a field or re-scanning a slip afterwards syncs that change to the central
+row too (images aren't re-uploaded for these, only the parsed fields).
 
 ## Known limitations
 

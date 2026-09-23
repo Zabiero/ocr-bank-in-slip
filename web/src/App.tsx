@@ -11,7 +11,7 @@ import { useSettings } from './hooks/useSettings';
 import { processFile, rescanSlip } from './processFile';
 import { editSlipField, computeStatus, type EditableSlipField } from './parsing/parseSlip';
 import { findDuplicate } from './duplicateDetection';
-import { submitSlipRecord } from './collectSubmission';
+import { submitSlipRecord, updateSlipRecord } from './collectSubmission';
 import { filterSlips } from './filterSlips';
 import { downloadCsv } from './export/csv';
 import { downloadXlsx } from './export/xlsx';
@@ -71,7 +71,9 @@ export default function App() {
     const slip = slips.find((s) => s.id === id);
     if (!slip) return;
     const parsed = editSlipField(slip.parsed, field, value);
-    upsertSlip({ ...slip, parsed, status: computeStatus(parsed) });
+    const updated = { ...slip, parsed, status: computeStatus(parsed) };
+    upsertSlip(updated);
+    void updateSlipRecord(updated);
   }
 
   async function handleRescan(id: string) {
@@ -84,7 +86,9 @@ export default function App() {
         slips.filter((s) => s.id !== id),
         updated,
       );
-      await upsertSlip(duplicateOf ? { ...updated, status: 'duplicate' } : updated);
+      const finalRecord = duplicateOf ? { ...updated, status: 'duplicate' as const } : updated;
+      await upsertSlip(finalRecord);
+      void updateSlipRecord(finalRecord);
     } finally {
       setRescanningId(null);
     }

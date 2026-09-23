@@ -97,3 +97,24 @@ export async function submitSlipRecord(record: SlipRecord): Promise<void> {
     console.warn('Could not sync this slip to the central record (it is still saved locally):', err);
   }
 }
+
+/**
+ * Syncs a manual field edit or a re-scan to the already-submitted central
+ * row (images are unchanged in both cases, so only the row needs updating -
+ * see submitSlipRecord for the initial upload). Same best-effort, silent
+ * contract: never interrupts the local edit/rescan if this fails, including
+ * when the slip was never submitted centrally in the first place (e.g.
+ * Supabase was unreachable at scan time) - `update` on a missing id is a
+ * harmless no-op, not an error.
+ */
+export async function updateSlipRecord(record: SlipRecord): Promise<void> {
+  if (!supabase) return;
+
+  try {
+    const row = buildSlipRow(record);
+    const { error } = await supabase.from('slips').update(row).eq('id', record.id);
+    if (error) throw error;
+  } catch (err) {
+    console.warn('Could not sync this edit to the central record (it is still saved locally):', err);
+  }
+}
