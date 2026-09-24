@@ -6,8 +6,14 @@ import type { ParsedField } from '../types';
 // so the parser doesn't skip past the real field and grab a different one,
 // like "Service Reference No", instead). Same idea as this codebase's
 // existing handling of AEON's logo dropping its stylized "A".
+//
+// A clean (not OCR-corrupted) "Service Reference No" must never match at
+// all, regardless of which one appears first in the document - two real
+// receipts happen to always put the real "Reference No" first, so the
+// existing order-based search got the right answer by coincidence, but nothing
+// stopped a differently-ordered receipt from matching the decoy instead.
 const REF_KEYWORD =
-  /\b(r?eference\s*no\.?|ref\.?\s*no\.?|r?eference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|r?ujukan)\s*[:\-]?\s*/i;
+  /\b(?<!service\s)(r?eference\s*no\.?|ref\.?\s*no\.?|r?eference|ref\.?|transaction\s*id|trans\.?\s*no\.?|receipt\s*no\.?|no\.?\s*rujukan|r?ujukan)\s*[:\-]?\s*/i;
 
 // Reference numbers are alphanumeric, often with dashes/slashes, long enough
 // that we won't mistake a short quantity for one, and - importantly -

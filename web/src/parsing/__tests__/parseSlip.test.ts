@@ -725,4 +725,27 @@ describe('parseSlip', () => {
     expect(parsed.amount.value).toBe(4376.66);
     expect(parsed.referenceNo.value).toBe('779830');
   });
+
+  // Synthetic (not from a real captured photo) - found via a self-run stress
+  // test across many amount/date/reference/bank shapes after being asked to
+  // hunt for cases where the parsed value comes out at the wrong order of
+  // magnitude. A trailing decimal point with only ONE digit after it (OCR
+  // dropping the final "0" off ".50", producing ".5") was being swept into
+  // the integer part instead of treated as a decimal, e.g. "1000.5" came out
+  // as 10005 - ten times too large - instead of 1000.5.
+  it('does not inflate an amount 10x when OCR drops the trailing zero off a decimal (".50" -> ".5")', () => {
+    const { parsed } = parseSlip('Amount: RM1000.5');
+    expect(parsed.amount.value).toBe(1000.5);
+  });
+
+  // Synthetic - same stress test. "Service Reference No" is already a known
+  // decoy field (see the two real DuitNow fixtures above), but the existing
+  // fix only worked because the real "Reference No" happened to sit earlier
+  // in the text in both of those cases - order, not content, was doing the
+  // work. A receipt where "Service Reference No" appears FIRST would have
+  // matched the decoy instead.
+  it('never matches "Service Reference No" as the reference, even when it appears before the real one', () => {
+    const { parsed } = parseSlip('Service Reference No: WRONG111\nReference No: RIGHT222');
+    expect(parsed.referenceNo.value).toBe('RIGHT222');
+  });
 });

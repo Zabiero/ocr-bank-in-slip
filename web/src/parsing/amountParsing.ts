@@ -30,10 +30,19 @@ function cleanNumericToken(raw: string): { value: number; hadOcrFix: boolean } |
     .replace(/[Ss]/g, '5')
     .replace(/[Bb]/g, '8');
 
-  const decimalMatch = digits.match(/[.,](\d{2})$/);
+  // Malaysian amounts always use '.' for decimal (sen) and ',' for thousands
+  // grouping - never the other way around - so only a trailing period counts
+  // as a decimal point; a trailing comma is always grouping, even one
+  // followed by exactly 2 digits (an OCR-truncated 3-digit group, e.g. a
+  // dropped last digit of "12,345", reads far more plausibly as 1234 than as
+  // 12.34). 1 or 2 digits after the period both count - not just 2 - since
+  // OCR dropping a trailing "0" off ".50" produces the equally valid-looking
+  // ".5"; requiring exactly 2 made "1000.5" parse as 10005 (the decimal
+  // point silently absorbed into the integer part, a 10x-magnitude bug).
+  const decimalMatch = digits.match(/\.(\d{1,2})$/);
   let numberStr: string;
   if (decimalMatch) {
-    const integerPart = digits.slice(0, digits.length - 3).replace(/[.,]/g, '');
+    const integerPart = digits.slice(0, digits.length - decimalMatch[0].length).replace(/[.,]/g, '');
     numberStr = `${integerPart || '0'}.${decimalMatch[1]}`;
   } else {
     numberStr = digits.replace(/[.,]/g, '');
