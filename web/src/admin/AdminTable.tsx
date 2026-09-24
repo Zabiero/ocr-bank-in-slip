@@ -30,6 +30,8 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
   const [sort, setSort] = useState<SortState>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [previewRow, setPreviewRow] = useState<SlipRow | null>(null);
   const [previewUrls, setPreviewUrls] = useState<{ original: string | null; processed: string | null } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -44,6 +46,64 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
     () => sorted.map((r) => rowsById.get(r.id)).filter((r): r is SlipRow => Boolean(r)),
     [sorted, rowsById],
   );
+  const selectedRows = useMemo(() => sortedRows.filter((r) => selectedIds.has(r.id)), [sortedRows, selectedIds]);
+  const allShownSelected = sortedRows.length > 0 && sortedRows.every((r) => selectedIds.has(r.id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllShown() {
+    setSelectedIds((prev) => {
+      if (allShownSelected) {
+        const next = new Set(prev);
+        for (const r of sortedRows) next.delete(r.id);
+        return next;
+      }
+      const next = new Set(prev);
+      for (const r of sortedRows) next.add(r.id);
+      return next;
+    });
+  }
+
+  /** Best-effort: keeps deleting the rest even if one fails, then reports a
+   * summary - a batch of 50 shouldn't all get stuck because one row's images
+   * were already missing. */
+  async function bulkDelete(targets: SlipRow[], confirmMessage: string) {
+    if (targets.length === 0) return;
+    if (!confirm(confirmMessage)) return;
+
+    setBulkDeleting(true);
+    let succeeded = 0;
+    const failures: string[] = [];
+    try {
+      for (const row of targets) {
+        try {
+          await deleteSlipRow(row);
+          onDeleted(row.id);
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(row.id);
+            return next;
+          });
+          succeeded++;
+        } catch (err) {
+          failures.push(`${row.reference_no ?? row.file_name}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
+
+    if (failures.length > 0) {
+      alert(`Deleted ${succeeded} of ${targets.length} records. Failed:\n${failures.join('\n')}`);
+    }
+  }
 
   async function handleExportTrainingData() {
     setExportingTraining(true);
@@ -102,6 +162,11 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
     try {
       await deleteSlipRow(row);
       onDeleted(row.id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
     } finally {
       setDeletingId(null);
     }
@@ -159,16 +224,54 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
         >
           {exportingTraining ? 'Fetching images…' : 'Export training data'}
         </button>
+        <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={() =>
+            bulkDelete(
+              selectedRows,
+              `Delete ${selectedRows.length} selected record${selectedRows.length === 1 ? '' : 's'}? This cannot be undone.`,
+            )
+          }
+          disabled={selectedRows.length === 0 || bulkDeleting}
+          className="rounded border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+        >
+          {bulkDeleting ? 'Deleting…' : `Delete selected (${selectedRows.length})`}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            bulkDelete(
+              sortedRows,
+              `Delete ALL ${sortedRows.length} record${sortedRows.length === 1 ? '' : 's'} shown${
+                sortedRows.length !== rows.length ? ' (matching the current filters)' : ''
+              }? This cannot be undone.`,
+            )
+          }
+          disabled={sortedRows.length === 0 || bulkDeleting}
+          className="rounded border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+        >
+          {bulkDeleting ? 'Deleting…' : `Delete all shown (${sortedRows.length})`}
+        </button>
       </div>
 
       <p className="mb-2 text-xs text-slate-500">
-        Showing {sorted.length} of {rows.length} record{rows.length === 1 ? '' : 's'}. Exports respect the filters above.
+        Showing {sorted.length} of {rows.length} record{rows.length === 1 ? '' : 's'}. Exports and bulk delete respect
+        the filters above.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full min-w-[1000px] table-fixed border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="w-8 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={allShownSelected}
+                  onChange={toggleSelectAllShown}
+                  aria-label="Select all shown"
+                />
+              </th>
               <th className="w-10 px-3 py-2">#</th>
               <th className="w-16 px-3 py-2">Photo</th>
               <th className="w-40 px-3 py-2">Uploaded</th>
@@ -188,6 +291,14 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
               return (
                 <Fragment key={record.id}>
                   <tr className="border-b border-slate-100 align-top last:border-0">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(row.id)}
+                        onChange={() => toggleSelected(row.id)}
+                        aria-label={`Select ${row.file_name}`}
+                      />
+                    </td>
                     <td className="px-3 py-2 text-slate-500">{i + 1}</td>
                     <td className="px-3 py-2">
                       <button
@@ -258,7 +369,7 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
                   </tr>
                   {expandedId === record.id && (
                     <tr className="border-b border-slate-100 bg-slate-50">
-                      <td colSpan={9} className="px-3 py-3">
+                      <td colSpan={10} className="px-3 py-3">
                         <p className="mb-1 text-xs font-medium text-slate-500">
                           Raw OCR text (overall confidence {Math.round(record.ocrConfidence)}%, engine: {record.ocrEngine}) — account
                           numbers are masked, everything else is exactly what OCR read:

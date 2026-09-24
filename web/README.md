@@ -307,10 +307,12 @@ local dev. Push any commit (or re-run the workflow) to pick them up.
 account from step 3. The admin table supports the same sort/filter as the
 main results table, plus viewing each slip's original photo, correcting any
 field directly (click a cell, same as the main table), and deleting
-records. It's also the only place to export **PDF** and **training data**
-(CSV/Excel/copy are on both the main table and here - they act on whatever's
-currently shown, so filter first if you only want a subset). It's a
-separate view from the local one on the same device -
+records - one at a time, a checked selection ("Delete selected"), or every
+row currently shown ("Delete all shown", which respects the filters above
+just like the exports do). It's also the only place to export **PDF** and
+**training data** (CSV/Excel/copy are on both the main table and here - they
+act on whatever's currently shown, so filter first if you only want a
+subset). It's a separate view from the local one on the same device -
 scanning a slip still saves it locally first either way; the central copy is
 an additional, best-effort upload (see `src/collectSubmission.ts`) that
 never blocks or fails the local scan if it can't reach Supabase. Correcting
