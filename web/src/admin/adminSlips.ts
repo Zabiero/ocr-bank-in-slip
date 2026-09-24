@@ -45,6 +45,16 @@ export async function fetchAllSlipRows(): Promise<SlipRow[]> {
   return data as SlipRow[];
 }
 
+/** Unlike collectSubmission.ts's best-effort, silent sync helpers, this
+ * throws on failure - an admin correction has nowhere else to land if the
+ * write fails, so the caller needs to know and revert the optimistic UI
+ * update rather than silently pretending it saved. */
+export async function updateSlipRow(row: SlipRow): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from('slips').update(row).eq('id', row.id);
+  if (error) throw error;
+}
+
 export async function deleteSlipRow(row: SlipRow): Promise<void> {
   if (!supabase) return;
   const paths = [row.original_image_path, row.processed_image_path].filter((p): p is string => Boolean(p));

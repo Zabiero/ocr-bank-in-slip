@@ -1,22 +1,25 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { SlipRow } from '../collectSubmission';
-import { deleteSlipRow, getSignedImageUrls, rowToSlipRecord } from './adminSlips';
+import { deleteSlipRow, getSignedImageUrls, rowToSlipRecord, updateSlipRow } from './adminSlips';
 import { sortSlips, type SortColumn } from '../sortSlips';
 import SortableHeader, { nextSortState, type SortState } from '../components/SortableHeader';
 import Filters, { EMPTY_FILTERS, type FilterState } from '../components/Filters';
 import { filterSlips } from '../filterSlips';
+import { editSlipField, computeStatus, type EditableSlipField } from '../parsing/parseSlip';
 import StatusBadge from '../components/StatusBadge';
+import EditableCell from '../components/EditableCell';
 
 interface AdminTableProps {
   rows: SlipRow[];
   onDeleted: (id: string) => void;
+  onEdited: (row: SlipRow) => void;
 }
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-export default function AdminTable({ rows, onDeleted }: AdminTableProps) {
+export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProps) {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -41,6 +44,33 @@ export default function AdminTable({ rows, onDeleted }: AdminTableProps) {
     const urls = await getSignedImageUrls(row);
     setPreviewUrls(urls);
     setPreviewLoading(false);
+  }
+
+  async function handleEditField(row: SlipRow, field: EditableSlipField, value: string) {
+    const record = rowToSlipRecord(row);
+    const parsed = editSlipField(record.parsed, field, value);
+    // Patch only the parsed-field columns, not a fresh buildSlipRow() -
+    // rowToSlipRecord() never populates image data URLs (see its comment),
+    // so recomputing image paths from a record built that way would null out
+    // the already-uploaded original/processed image paths on every edit.
+    const updatedRow: SlipRow = {
+      ...row,
+      date: parsed.date.value,
+      time: parsed.time.value,
+      amount: parsed.amount.value,
+      currency: parsed.currency.value,
+      reference_no: parsed.referenceNo.value,
+      bank: parsed.bank.value,
+      status: computeStatus(parsed),
+      masked_account_numbers: parsed.maskedAccountNumbers,
+    };
+    onEdited(updatedRow);
+    try {
+      await updateSlipRow(updatedRow);
+    } catch (err) {
+      onEdited(row);
+      alert(`Could not save this correction: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async function handleDelete(row: SlipRow) {
@@ -103,13 +133,42 @@ export default function AdminTable({ rows, onDeleted }: AdminTableProps) {
                       </button>
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-600">{formatDateTime(row.created_at)}</td>
-                    <td className="px-3 py-2">{record.parsed.date.value ?? <span className="text-slate-400">—</span>}</td>
-                    <td className="px-3 py-2">{record.parsed.time.value ?? <span className="text-slate-400">N/A</span>}</td>
                     <td className="px-3 py-2">
-                      {record.parsed.amount.value != null ? record.parsed.amount.value.toFixed(2) : <span className="text-slate-400">—</span>}
+                      <EditableCell
+                        value={record.parsed.date.value}
+                        confidence={record.parsed.date.confidence}
+                        onCommit={(v) => handleEditField(row, 'date', v)}
+                      />
                     </td>
-                    <td className="px-3 py-2">{record.parsed.referenceNo.value ?? <span className="text-slate-400">—</span>}</td>
-                    <td className="px-3 py-2">{record.parsed.bank.value ?? <span className="text-slate-400">—</span>}</td>
+                    <td className="px-3 py-2">
+                      <EditableCell
+                        value={record.parsed.time.value}
+                        confidence={record.parsed.time.confidence}
+                        onCommit={(v) => handleEditField(row, 'time', v)}
+                        isOptional
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <EditableCell
+                        value={record.parsed.amount.value != null ? record.parsed.amount.value.toFixed(2) : null}
+                        confidence={record.parsed.amount.confidence}
+                        onCommit={(v) => handleEditField(row, 'amount', v)}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <EditableCell
+                        value={record.parsed.referenceNo.value}
+                        confidence={record.parsed.referenceNo.confidence}
+                        onCommit={(v) => handleEditField(row, 'referenceNo', v)}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <EditableCell
+                        value={record.parsed.bank.value}
+                        confidence={record.parsed.bank.confidence}
+                        onCommit={(v) => handleEditField(row, 'bank', v)}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <StatusBadge status={record.status} />
                     </td>

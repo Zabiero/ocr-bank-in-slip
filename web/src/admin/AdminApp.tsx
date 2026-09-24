@@ -77,7 +77,11 @@ export default function AdminApp() {
       {loadError && <p className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">{loadError}</p>}
 
       {rowsLoaded ? (
-        <AdminTable rows={rows} onDeleted={(id) => setRows((prev) => prev.filter((r) => r.id !== id))} />
+        <AdminTable
+          rows={rows}
+          onDeleted={(id) => setRows((prev) => prev.filter((r) => r.id !== id))}
+          onEdited={(updated) => setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))}
+        />
       ) : (
         <p className="py-12 text-center text-sm text-slate-500">Loading records…</p>
       )}

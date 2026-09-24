@@ -264,6 +264,8 @@ create policy "anon can update slips" on public.slips
   for update to anon using (true) with check (true);
 create policy "authenticated can also insert slips" on public.slips
   for insert to authenticated with check (true);
+create policy "authenticated can update slips" on public.slips
+  for update to authenticated using (true) with check (true);
 create policy "authenticated can read slips" on public.slips
   for select to authenticated using (true);
 create policy "authenticated can delete slips" on public.slips
@@ -299,7 +301,8 @@ local dev. Push any commit (or re-run the workflow) to pick them up.
 **5. View records** at `<your-site-url>/#admin` (e.g.
 `https://zabiero.github.io/ocr-bank-in-slip/#admin`), signing in with the
 account from step 3. The admin table supports the same sort/filter as the
-main results table, plus viewing each slip's original photo and deleting
+main results table, plus viewing each slip's original photo, correcting any
+field directly (click a cell, same as the main table), and deleting
 records. It's a separate view from the local one on the same device -
 scanning a slip still saves it locally first either way; the central copy is
 an additional, best-effort upload (see `src/collectSubmission.ts`) that
