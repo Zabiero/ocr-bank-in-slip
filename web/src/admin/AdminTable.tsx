@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { SlipRow } from '../collectSubmission';
 import { deleteSlipRow, getSignedImageUrls, rowToSlipRecord, updateSlipRow } from './adminSlips';
+import { fetchRecordsWithImages } from './adminTrainingExport';
 import { sortSlips, type SortColumn } from '../sortSlips';
 import SortableHeader, { nextSortState, type SortState } from '../components/SortableHeader';
 import Filters, { EMPTY_FILTERS, type FilterState } from '../components/Filters';
@@ -8,6 +9,11 @@ import { filterSlips } from '../filterSlips';
 import { editSlipField, computeStatus, type EditableSlipField } from '../parsing/parseSlip';
 import StatusBadge from '../components/StatusBadge';
 import EditableCell from '../components/EditableCell';
+import { downloadCsv } from '../export/csv';
+import { downloadXlsx } from '../export/xlsx';
+import { downloadPdf } from '../export/pdf';
+import { copySlipsToClipboard } from '../export/clipboard';
+import { downloadTrainingData } from '../export/trainingData';
 
 interface AdminTableProps {
   rows: SlipRow[];
@@ -28,11 +34,26 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
   const [previewUrls, setPreviewUrls] = useState<{ original: string | null; processed: string | null } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [exportingTraining, setExportingTraining] = useState(false);
 
   const rowsById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const records = useMemo(() => rows.map(rowToSlipRecord), [rows]);
   const filtered = useMemo(() => filterSlips(records, filters), [records, filters]);
   const sorted = useMemo(() => (sort ? sortSlips(filtered, sort.column, sort.direction) : filtered), [filtered, sort]);
+  const sortedRows = useMemo(
+    () => sorted.map((r) => rowsById.get(r.id)).filter((r): r is SlipRow => Boolean(r)),
+    [sorted, rowsById],
+  );
+
+  async function handleExportTrainingData() {
+    setExportingTraining(true);
+    try {
+      const withImages = await fetchRecordsWithImages(sortedRows);
+      downloadTrainingData(withImages);
+    } finally {
+      setExportingTraining(false);
+    }
+  }
 
   const handleSort = (column: SortColumn) => setSort((current) => nextSortState(current, column));
 
@@ -95,8 +116,53 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
       <div className="mb-4">
         <Filters value={filters} onChange={setFilters} />
       </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => downloadCsv(sorted)}
+          disabled={sorted.length === 0}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          Export CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadXlsx(sorted)}
+          disabled={sorted.length === 0}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          Export Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadPdf(sorted)}
+          disabled={sorted.length === 0}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          Export PDF
+        </button>
+        <button
+          type="button"
+          onClick={() => copySlipsToClipboard(sorted)}
+          disabled={sorted.length === 0}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          onClick={handleExportTrainingData}
+          disabled={sorted.length === 0 || exportingTraining}
+          title="Downloads each shown slip's image plus its current field values as JSON. Fetches every image fresh, so this can take a while for a large filtered set."
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+        >
+          {exportingTraining ? 'Fetching images…' : 'Export training data'}
+        </button>
+      </div>
+
       <p className="mb-2 text-xs text-slate-500">
-        Showing {sorted.length} of {rows.length} record{rows.length === 1 ? '' : 's'}.
+        Showing {sorted.length} of {rows.length} record{rows.length === 1 ? '' : 's'}. Exports respect the filters above.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">

@@ -26,8 +26,10 @@ web/
 
     admin/                    Optional admin view at /#admin - see "Central record-keeping"
       AdminApp.tsx              Auth gate (Supabase email/password login)
-      AdminTable.tsx             Same sort/filter/image-preview UX as the local table
-      adminSlips.ts              Fetch/delete rows, signed image URLs
+      AdminTable.tsx             Same sort/filter/image-preview UX as the local table, plus
+                                  CSV/Excel/PDF/copy/training-data export (see export/ above)
+      adminSlips.ts              Fetch/delete/update rows, signed image URLs
+      adminTrainingExport.ts     Fetches each row's image on demand for training-data export
 
     imageProcessing/
       preprocess.ts            PDF/HEIC decoding, EXIF auto-rotate, auto-crop,
@@ -53,7 +55,9 @@ web/
       db.ts                     IndexedDB: slips persist across refresh
       settings.ts                localStorage: app settings (date mode, OCR engine, ...)
 
-    export/                    CSV / Excel (SheetJS) / clipboard (TSV), all from one row shape
+    export/                    CSV / Excel (SheetJS) / PDF (jsPDF) / clipboard (TSV) / training
+                                data (JSON + images), all from one row shape - CSV/Excel/clipboard
+                                are on the main table too, PDF/training data are admin-only
 
     components/                CameraCapture, UploadDropzone, ResultsTable, Filters,
                                 TotalsFooter, SettingsPanel, ProcessingQueue, ...
@@ -303,7 +307,10 @@ local dev. Push any commit (or re-run the workflow) to pick them up.
 account from step 3. The admin table supports the same sort/filter as the
 main results table, plus viewing each slip's original photo, correcting any
 field directly (click a cell, same as the main table), and deleting
-records. It's a separate view from the local one on the same device -
+records. It's also the only place to export **PDF** and **training data**
+(CSV/Excel/copy are on both the main table and here - they act on whatever's
+currently shown, so filter first if you only want a subset). It's a
+separate view from the local one on the same device -
 scanning a slip still saves it locally first either way; the central copy is
 an additional, best-effort upload (see `src/collectSubmission.ts`) that
 never blocks or fails the local scan if it can't reach Supabase. Correcting
