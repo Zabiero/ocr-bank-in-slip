@@ -17,7 +17,7 @@ interface ResultsTableProps {
 export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescanningId }: ResultsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [previewSlip, setPreviewSlip] = useState<SlipRecord | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(true);
   const [sort, setSort] = useState<SortState>(null);
 
   const handleSort = (column: SortColumn) => setSort((current) => nextSortState(current, column));
@@ -57,7 +57,7 @@ export default function ResultsTable({ slips, onEdit, onDelete, onRescan, rescan
                   <button
                     type="button"
                     onClick={() => {
-                      setShowOriginal(false);
+                      setShowOriginal(true);
                       setPreviewSlip(slip);
                     }}
                     className="block rounded focus:outline-none focus:ring-2 focus:ring-blue-500"

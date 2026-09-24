@@ -33,7 +33,7 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
   const [previewRow, setPreviewRow] = useState<SlipRow | null>(null);
   const [previewUrls, setPreviewUrls] = useState<{ original: string | null; processed: string | null } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(true);
   const [exportingTraining, setExportingTraining] = useState(false);
 
   const rowsById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
@@ -59,7 +59,7 @@ export default function AdminTable({ rows, onDeleted, onEdited }: AdminTableProp
 
   async function openPreview(row: SlipRow) {
     setPreviewRow(row);
-    setShowOriginal(false);
+    setShowOriginal(true);
     setPreviewUrls(null);
     setPreviewLoading(true);
     const urls = await getSignedImageUrls(row);
