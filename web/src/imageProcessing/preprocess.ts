@@ -493,6 +493,45 @@ function applyAdaptiveThreshold(imageData: ImageData): ImageData {
   return imageData;
 }
 
+/**
+ * A PDF, e-statement or screenshot is already crisp dark-on-white: most of
+ * it is pure white background. A phone photo of a paper slip almost never
+ * is - even paper that looks white to the eye measures well below that under
+ * indoor lighting. Measured across every real slip in this project's test
+ * set: screenshots/PDFs 79-96% near-white pixels, paper photos 0%.
+ */
+const CLEAN_DOCUMENT_BRIGHT_FRACTION = 0.5;
+
+function isCleanDigitalDocument(imageData: ImageData): boolean {
+  const { data } = imageData;
+  let bright = 0;
+  let total = 0;
+  // Every 16th pixel is plenty for a fraction and keeps this cheap on a large image.
+  for (let i = 0; i < data.length; i += 64) {
+    const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    if (l > 235) bright++;
+    total++;
+  }
+  return total > 0 && bright / total > CLEAN_DOCUMENT_BRIGHT_FRACTION;
+}
+
+/**
+ * Used instead of applyAdaptiveThreshold for clean digital documents, which
+ * don't need it and are actively harmed by it: binarizing already-crisp
+ * glyphs closes small gaps, turning "9" into "8". Confirmed on a real Hong
+ * Leong debit advice (PDF export) - Tesseract read "01/09/2026" correctly
+ * from grayscale but "01/08/2026" after thresholding, and a reference number
+ * lost two digits the same way. Tesseract still binarizes internally.
+ */
+function toGrayscaleImageData(imageData: ImageData): ImageData {
+  const { data } = imageData;
+  for (let i = 0; i < data.length; i += 4) {
+    const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    data[i] = data[i + 1] = data[i + 2] = l;
+  }
+  return imageData;
+}
+
 export interface PreprocessResult {
   /** Full-resolution, cropped and contrast-enhanced canvas, ready for OCR. */
   canvas: HTMLCanvasElement;
@@ -557,7 +596,8 @@ export async function preprocessImage(file: File): Promise<PreprocessResult> {
     croppedCtx = upscaledCtx;
   }
 
-  const enhancedData = applyAdaptiveThreshold(croppedCtx.getImageData(0, 0, cropped.width, cropped.height));
+  const pixels = croppedCtx.getImageData(0, 0, cropped.width, cropped.height);
+  const enhancedData = isCleanDigitalDocument(pixels) ? toGrayscaleImageData(pixels) : applyAdaptiveThreshold(pixels);
   croppedCtx.putImageData(enhancedData, 0, 0);
 
   const thumbnail = document.createElement('canvas');
