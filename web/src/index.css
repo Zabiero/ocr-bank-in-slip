@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
+/* Camera slip-guide overlay */
+.slip-guide {
+  position: absolute;
+  inset: 8% 10%;
+  border: 3px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.field-ok {
+  @apply bg-white;
+}
+
+.field-warn {
+  @apply bg-yellow-100;
+}
+
+.field-missing {
+  @apply bg-red-100;
+}
