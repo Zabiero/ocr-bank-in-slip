@@ -1,6 +1,8 @@
 import type { ParsedField } from '../types';
 
 const DATE_KEYWORD = /\b(date|tarikh)\b/i;
+const TRANSACTION_DATE_KEYWORD =
+  /\b(value|transaction|txn|payment|posting|transfer|effective)\s*date\b|\btarikh\s*(transaksi|bayaran|nilai|pindahan)\b/i;
 
 /** English + Malay month names/abbreviations, for formats like "12 Sep 2026" or "12 Mac 2026". */
 const MONTHS: Record<string, number> = {
@@ -165,7 +167,6 @@ export function parseDate(text: string): ParsedField<string> {
     return candidates.find((c) => c.matchIndex >= start && c.matchIndex < end);
   };
 
-  let nearKeyword: Candidate | null = null;
   // Non-blank lines only: Tesseract's SPARSE_TEXT mode puts a blank line
   // after every fragment, so "label, blank, [other field], blank, value" is
   // several raw lines away despite being only a couple of real fragments
@@ -173,41 +174,52 @@ export function parseDate(text: string): ParsedField<string> {
   // out too early on a real receipt (confirmed: a value 2 fragments past
   // its label sat 4 raw lines away and was missed).
   const MAX_LOOKAROUND = 3;
-  for (let i = 0; i < lines.length && !nearKeyword; i++) {
-    if (!DATE_KEYWORD.test(lines[i])) continue;
-
-    const foundSameLine = candidateOnLine(i);
-    if (foundSameLine) {
-      nearKeyword = foundSameLine;
-      break;
-    }
-
+  const candidateNearLabel = (i: number): Candidate | null => {
+    const sameLine = candidateOnLine(i);
+    if (sameLine) return sameLine;
     for (let j = i + 1, seen = 0; j < lines.length && seen < MAX_LOOKAROUND; j++) {
       if (lines[j].trim() === '') continue;
       seen++;
       const found = candidateOnLine(j);
-      if (found) {
-        nearKeyword = found;
-        break;
-      }
+      if (found) return found;
     }
-    if (nearKeyword) break;
-
     for (let j = i - 1, seen = 0; j >= 0 && seen < MAX_LOOKAROUND; j--) {
       if (lines[j].trim() === '') continue;
       seen++;
       const found = candidateOnLine(j);
-      if (found) {
-        nearKeyword = found;
-        break;
-      }
+      if (found) return found;
     }
+    return null;
+  };
+
+  // Every labelled date on the slip, not just the first - a slip can carry
+  // two (e.g. a debit advice's document "Date" plus its "Value Date"), and
+  // OCR can misread one but not the other. Confirmed on a real Hong Leong
+  // debit advice: in-browser OCR read the header "Date" as 01/08/2026 while
+  // "Value Date" right below it read correctly as 01-09-2026; taking the
+  // first match returned the wrong one.
+  const labelled: Array<{ candidate: Candidate; transactionSpecific: boolean }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!DATE_KEYWORD.test(lines[i])) continue;
+    const candidate = candidateNearLabel(i);
+    if (candidate) labelled.push({ candidate, transactionSpecific: TRANSACTION_DATE_KEYWORD.test(lines[i]) });
   }
 
-  const chosen = nearKeyword ?? candidates[0];
+  // A transaction-specific label ("Value Date", "Transaction Date", ...)
+  // names the date that actually matters for a payment; a bare "Date" is
+  // often just the document's own issue/print date. Prefer the former.
+  const preferred = labelled.find((l) => l.transactionSpecific) ?? labelled[0];
+  const chosen = preferred?.candidate ?? candidates[0];
 
-  let confidence = nearKeyword ? 95 : 75;
+  let confidence = preferred ? 95 : 75;
   if (chosen.ambiguous) confidence -= 10;
+  // Labelled dates that disagree mean OCR misread at least one of them -
+  // the preferred pick is the best guess, but keep it below the review
+  // threshold so the conflict gets a human look instead of passing silently.
+  const disagreement = labelled.some(
+    (l) => format(l.candidate.day, l.candidate.month, l.candidate.year) !== format(chosen.day, chosen.month, chosen.year),
+  );
+  if (disagreement) confidence = Math.min(confidence, 70);
 
   return { value: format(chosen.day, chosen.month, chosen.year), confidence, raw: chosen.matchText };
 }

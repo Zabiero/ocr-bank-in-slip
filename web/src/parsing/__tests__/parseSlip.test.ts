@@ -506,6 +506,66 @@ Public Bank Berhad 196501000672 (6463-H)
 
 Public Islamic Bank Berhad 197301001433 (14328-V)`;
 
+// Real Tesseract.js output, captured from the live app in a browser for a
+// Hong Leong "ConnectFirst" debit advice. The slip prints the same date
+// twice - the document "Date: 01/09/2026" and "Value Date: 01-09-2026" - and
+// in-browser OCR misread the first as 01/08/2026 but got "Value Date" right.
+const HLB_DEBIT_ADVICE_SLIP = `[lf 3 HongLeong Bank p> HongLeong Islamic Bank | IEE
+
+connectFirst
+
+DEBIT ADVICE
+
+Date
+
+01/08/2026
+
+Account No.
+
+HOOKXKE046
+
+Dear SirMadam,
+
+Account Name
+
+TME MOTORSPORTS SDN
+
+Your Account has been debited for the following transaction
+
+Transaction Details
+
+Transaction Reference No.
+
+: C753010926164136
+
+Payment Type
+
++ Payment to 3rd Party Account
+
+Value Date
+
+: 01-09-2026
+
+Beneficiary Name
+
+: DARMA MOTOR SDN BHD
+
+XOXXXXE345
+
+Amount (MYR)
+
+: 25,872.00
+
+Beneficiary Account No.
+
+Service Charge (MYR)
+
+$0.00
+
+Beneficiary Bank
+
+HLBB,HLBB`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -744,6 +804,15 @@ describe('parseSlip', () => {
   // in the text in both of those cases - order, not content, was doing the
   // work. A receipt where "Service Reference No" appears FIRST would have
   // matched the decoy instead.
+  it('prefers "Value Date" over a misread document "Date", and flags the disagreement for review', () => {
+    const { parsed } = parseSlip(HLB_DEBIT_ADVICE_SLIP);
+    expect(parsed.date.value).toBe('01-09-2026');
+    expect(parsed.date.confidence).toBeLessThan(80);
+    expect(parsed.amount.value).toBe(25872);
+    expect(parsed.referenceNo.value).toBe('C753010926164136');
+    expect(parsed.bank.value).toBe('Hong Leong Bank');
+  });
+
   it('never matches "Service Reference No" as the reference, even when it appears before the real one', () => {
     const { parsed } = parseSlip('Service Reference No: WRONG111\nReference No: RIGHT222');
     expect(parsed.referenceNo.value).toBe('RIGHT222');
