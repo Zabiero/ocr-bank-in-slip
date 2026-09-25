@@ -29,7 +29,9 @@ export const BANKS: Bank[] = [
   },
   {
     name: 'Hong Leong Bank',
-    aliases: ['hong leong bank', 'hlb', 'hong leong connect'],
+    // "HongLeong" as one word is how its logo/header prints (e.g. "HongLeong
+    // Bank" on a ConnectFirst debit advice), which "hong leong bank" misses.
+    aliases: ['hong leong bank', 'hongleong', 'hlb', 'hong leong connect', 'connectfirst'],
   },
   {
     name: 'Bank Islam',
@@ -97,6 +99,10 @@ export const BANKS: Bank[] = [
   {
     name: 'Agrobank',
     aliases: ['bank pertanian malaysia', 'agrobank'],
+  },
+  {
+    name: 'Citibank',
+    aliases: ['citibank berhad', 'citibank', 'citi bank'],
   },
   {
     name: 'Bank of China (Malaysia)',
@@ -191,6 +197,25 @@ function isNearCounterpartyLabel(lines: string[], lineSpans: Array<{ start: numb
   return false;
 }
 
+/**
+ * A Malaysian SWIFT/BIC code (e.g. "HLBBMYKL": 4-letter bank code, "MY",
+ * 2-char location, optional 3-char branch). Slips use these for the *other*
+ * party's bank ("Beneficiary Bank : HLBBMYKL"), never to identify their own
+ * issuer - and a bank alias like "hlb" matching inside one says nothing
+ * about who issued the slip. Confirmed on a real Citi payment advice: OCR
+ * broke its "Beneficiary Bank" label apart ("Bene" / "iary Bank"), so only
+ * this shape could tell that "HLBBMYKL" was the recipient's bank.
+ */
+const MALAYSIAN_SWIFT_CODE = /^[A-Z]{4}MY[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/;
+
+function isInsideSwiftCode(text: string, matchIndex: number): boolean {
+  let start = matchIndex;
+  while (start > 0 && /[A-Za-z0-9]/.test(text[start - 1])) start--;
+  let end = matchIndex;
+  while (end < text.length && /[A-Za-z0-9]/.test(text[end])) end++;
+  return MALAYSIAN_SWIFT_CODE.test(text.slice(start, end));
+}
+
 /** Earliest match wins; ties broken by the longer (more specific) alias. */
 function pickBest(matches: BankMatch[]): BankMatch | null {
   let best: BankMatch | null = null;
@@ -214,8 +239,8 @@ function pickBest(matches: BankMatch[]): BankMatch | null {
  * further down (e.g. the recipient's bank in a "Transfer to ... RHB Bank
  * Berhad" section of a transfer receipt) - that later match must not win.
  * Matches found right after a counterparty label (see COUNTERPARTY_LABEL)
- * are only used as a last resort, since they name the *other* party's bank
- * regardless of where on the page they happen to sit.
+ * or inside a SWIFT code are never used, since they name the *other*
+ * party's bank regardless of where on the page they happen to sit.
  */
 export function detectBank(
   text: string,
@@ -240,7 +265,7 @@ export function detectBank(
       const index = lower.indexOf(alias.toLowerCase());
       if (index === -1) continue;
       const match: BankMatch = { name: bank.name, alias, index };
-      if (isNearCounterpartyLabel(lines, lineSpans, index)) {
+      if (isNearCounterpartyLabel(lines, lineSpans, index) || isInsideSwiftCode(text, index)) {
         counterpartyMatches.push(match);
       } else {
         ownMatches.push(match);
@@ -248,9 +273,13 @@ export function detectBank(
     }
   }
 
-  const best = pickBest(ownMatches) ?? pickBest(counterpartyMatches);
+  const best = pickBest(ownMatches);
   if (best) {
     return { name: best.name, confidence: 95, raw: best.alias };
   }
-  return { name: UNKNOWN_BANK, confidence: 0 };
+  // Only the other party's bank was found - that's not who issued the slip,
+  // so report Unknown (flagged for review) rather than a confident wrong
+  // answer. Confirmed on a real Citi payment advice whose only bank text was
+  // the beneficiary's SWIFT code; it showed "Hong Leong Bank" as the issuer.
+  return { name: UNKNOWN_BANK, confidence: 0, raw: pickBest(counterpartyMatches)?.alias };
 }

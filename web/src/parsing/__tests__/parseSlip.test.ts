@@ -566,6 +566,63 @@ Beneficiary Bank
 
 HLBB,HLBB`;
 
+// Real Tesseract.js output, captured from the live app in a browser, for a
+// Citi "Payment Advice" in a thin light-gray typewriter font. Citi's name is
+// only in its logo (unreadable as text); the only bank text left is the
+// beneficiary's SWIFT code "HLBBMYKL", whose "Beneficiary Bank" label OCR
+// broke apart ("Bene" / "iary Bank").
+const CITI_PAYMENT_ADVICE_BROWSER_SLIP = `DATE
+
+28-Aug-26
+
+Page
+
+1
+
+To
+
+Darma Motor Sdn Bhd
+
+Bank Reference
+
+QOM88C1658HYO!
+
+Transaction Reference
+
+260828 00358
+
+Bene
+
+iary Bank
+
+HLBBMYKL
+
+DuitNow
+
+ID/Account Number
+
+15400016345
+
+Inv
+
+ice Amount
+
+3,300
+
+.00
+
+00
+
+Currency
+
+MYR
+
+Cre
+
+Date
+
+28-Aug-26`;
+
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
     const { parsed, maskedText } = parseSlip(MAYBANK_SLIP);
@@ -811,6 +868,13 @@ describe('parseSlip', () => {
     expect(parsed.amount.value).toBe(25872);
     expect(parsed.referenceNo.value).toBe('C753010926164136');
     expect(parsed.bank.value).toBe('Hong Leong Bank');
+  });
+
+  it("reports Unknown rather than the beneficiary's bank when that's the only bank named (SWIFT code)", () => {
+    const { parsed } = parseSlip(CITI_PAYMENT_ADVICE_BROWSER_SLIP);
+    expect(parsed.bank.value).toBe('Unknown');
+    expect(parsed.date.value).toBe('28-08-2026');
+    expect(parsed.amount.value).toBe(3300);
   });
 
   it('never matches "Service Reference No" as the reference, even when it appears before the real one', () => {
