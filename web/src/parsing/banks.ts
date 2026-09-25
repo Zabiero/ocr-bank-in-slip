@@ -103,6 +103,10 @@ export const BANKS: Bank[] = [
   {
     name: 'Citibank',
     aliases: ['citibank berhad', 'citibank', 'citi bank'],
+    // Citi's corporate "Payment Advice" shows its name only as a logo, which
+    // OCR can't read. These two phrases from its body and disclaimer survive
+    // OCR intact and together are specific to that document.
+    fingerprint: ['made to your account on behalf of', 'purports to set out certain details of the transaction'],
   },
   {
     name: 'Bank of China (Malaysia)',
@@ -276,6 +280,14 @@ export function detectBank(
   const best = pickBest(ownMatches);
   if (best) {
     return { name: best.name, confidence: 95, raw: best.alias };
+  }
+
+  // No name printed as text - try recognising the document's standard
+  // wording instead. Whitespace is collapsed since OCR splits lines freely.
+  const flat = lower.replace(/\s+/g, ' ');
+  const byWording = banks.find((b) => b.fingerprint?.length && b.fingerprint.every((phrase) => flat.includes(phrase)));
+  if (byWording) {
+    return { name: byWording.name, confidence: 85, raw: 'recognised from document wording' };
   }
   // Only the other party's bank was found - that's not who issued the slip,
   // so report Unknown (flagged for review) rather than a confident wrong

@@ -68,4 +68,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export interface Bank {
   name: string;
   aliases: string[];
+  /** For documents that never print the bank's name as text (logo only):
+   * phrases from its standard wording that must ALL appear to identify it. */
+  fingerprint?: string[];
 }

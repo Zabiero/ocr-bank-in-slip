@@ -583,6 +583,8 @@ To
 
 Darma Motor Sdn Bhd
 
+be made to your account on behalf of IMOTORBIKE WORLD SDN
+
 Bank Reference
 
 QOM88C1658HYO!
@@ -621,7 +623,9 @@ Cre
 
 Date
 
-28-Aug-26`;
+28-Aug-26
+
+request of the bank of client and purports to set out certain details of the transaction our bank was instructed to`;
 
 describe('parseSlip', () => {
   it('extracts all fields confidently from a clean Maybank slip and masks the account number', () => {
@@ -870,11 +874,16 @@ describe('parseSlip', () => {
     expect(parsed.bank.value).toBe('Hong Leong Bank');
   });
 
-  it("reports Unknown rather than the beneficiary's bank when that's the only bank named (SWIFT code)", () => {
+  it('recognises a Citi payment advice from its wording, not the beneficiary SWIFT code', () => {
     const { parsed } = parseSlip(CITI_PAYMENT_ADVICE_BROWSER_SLIP);
-    expect(parsed.bank.value).toBe('Unknown');
+    expect(parsed.bank.value).toBe('Citibank');
     expect(parsed.date.value).toBe('28-08-2026');
     expect(parsed.amount.value).toBe(3300);
+  });
+
+  it("reports Unknown rather than the beneficiary's bank when a SWIFT code is the only bank text", () => {
+    const { parsed } = parseSlip('Payment Advice\nDate: 28-Aug-26\nBank\nHLBBMYKL\nAmount: RM3,300.00');
+    expect(parsed.bank.value).toBe('Unknown');
   });
 
   it('never matches "Service Reference No" as the reference, even when it appears before the real one', () => {
