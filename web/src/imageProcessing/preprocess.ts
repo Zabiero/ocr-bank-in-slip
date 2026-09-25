@@ -516,18 +516,48 @@ function isCleanDigitalDocument(imageData: ImageData): boolean {
 }
 
 /**
- * Used instead of applyAdaptiveThreshold for clean digital documents, which
- * don't need it and are actively harmed by it: binarizing already-crisp
- * glyphs closes small gaps, turning "9" into "8". Confirmed on a real Hong
- * Leong debit advice (PDF export) - Tesseract read "01/09/2026" correctly
- * from grayscale but "01/08/2026" after thresholding, and a reference number
- * lost two digits the same way. Tesseract still binarizes internally.
+ * Used instead of applyAdaptiveThreshold for clean digital documents: a
+ * linear contrast stretch that maps the document's darkest ink to black
+ * while keeping anti-aliased edges. Measured on real slips with the app's
+ * exact Tesseract.js setup, each alternative broke one of them:
+ * - hard black/white thresholding closes small glyph gaps - a Hong Leong
+ *   debit advice's "01/09/2026" read as "01/08/2026", and its reference
+ *   number lost two digits;
+ * - plain grayscale leaves a Citi payment advice's thin, light-gray
+ *   typewriter font too faint - "28-Aug-26" read as "28-2ug-26" and the
+ *   words broke apart.
+ * Stretching fixes the faint strokes without reshaping the glyphs.
  */
-function toGrayscaleImageData(imageData: ImageData): ImageData {
+function contrastStretchImageData(imageData: ImageData): ImageData {
   const { data } = imageData;
-  for (let i = 0; i < data.length; i += 4) {
+  const pixelCount = data.length / 4;
+  const lum = new Uint8ClampedArray(pixelCount);
+  const inkHistogram = new Uint32Array(256);
+  let inkCount = 0;
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
     const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    data[i] = data[i + 1] = data[i + 2] = l;
+    lum[p] = l;
+    if (l < 240) {
+      inkHistogram[lum[p]]++;
+      inkCount++;
+    }
+  }
+
+  // 5th percentile of the non-background pixels: the typical darkest ink,
+  // ignoring a few stray pure-black specks.
+  let low = 0;
+  for (let level = 0, seen = 0, target = inkCount * 0.05; level < 256; level++) {
+    seen += inkHistogram[level];
+    if (seen > target) {
+      low = level;
+      break;
+    }
+  }
+  const scale = 255 / Math.max(1, 255 - low);
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const v = (lum[p] - low) * scale;
+    data[i] = data[i + 1] = data[i + 2] = v;
   }
   return imageData;
 }
@@ -597,7 +627,7 @@ export async function preprocessImage(file: File): Promise<PreprocessResult> {
   }
 
   const pixels = croppedCtx.getImageData(0, 0, cropped.width, cropped.height);
-  const enhancedData = isCleanDigitalDocument(pixels) ? toGrayscaleImageData(pixels) : applyAdaptiveThreshold(pixels);
+  const enhancedData = isCleanDigitalDocument(pixels) ? contrastStretchImageData(pixels) : applyAdaptiveThreshold(pixels);
   croppedCtx.putImageData(enhancedData, 0, 0);
 
   const thumbnail = document.createElement('canvas');
